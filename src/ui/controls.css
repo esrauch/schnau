@@ -1,0 +1,113 @@
+/* The on-screen controls (ui/controls.ts): chunky, round and friendly, thumb-sized. */
+
+.controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.controls.disabled .controls-buttons {
+  opacity: 0.35;
+}
+
+/* The left part of the screen: touch anywhere there and the stick centres on your thumb. */
+.controls-pad {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 58%;
+  height: 48%;
+  touch-action: none;
+}
+
+.controls-stick {
+  position: absolute;
+  left: 92px;
+  top: calc(100% - 120px - env(safe-area-inset-bottom));
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.18);
+  border: 3px solid rgb(255 255 255 / 0.55);
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.controls-stick.active {
+  opacity: 1;
+}
+
+.controls-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  background: var(--bone);
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.25);
+}
+
+.controls-buttons {
+  position: absolute;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 190px;
+  height: 170px;
+}
+
+.controls-buttons button {
+  position: absolute;
+  border: 0;
+  border-radius: 50%;
+  font:
+    800 15px/1 system-ui,
+    sans-serif;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 5px 0 rgb(0 0 0 / 0.28);
+}
+
+.controls-buttons button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.28);
+}
+
+/* WOOF: big; fills up round its rim as a WOOF charges, glows when full. */
+.controls-woof {
+  --charge: 0;
+  right: 0;
+  bottom: 0;
+  width: 104px;
+  height: 104px;
+  background:
+    radial-gradient(circle, var(--accent) 0 60%, transparent 61%),
+    conic-gradient(var(--white) calc(var(--charge) * 360deg), rgb(0 0 0 / 0.25) 0);
+  font-size: 19px;
+}
+
+.controls-woof.charged {
+  box-shadow:
+    0 5px 0 rgb(0 0 0 / 0.28),
+    0 0 0 6px rgb(255 255 255 / 0.8);
+}
+
+.controls-woof.cooling {
+  filter: saturate(0.4) brightness(0.9);
+}
+
+/* DASH: smaller, up and to the left; its rim refills as the dash recharges. */
+.controls-dash {
+  --ready: 1;
+  left: 0;
+  top: 0;
+  width: 74px;
+  height: 74px;
+  background:
+    radial-gradient(circle, var(--bone) 0 62%, transparent 63%),
+    conic-gradient(#6fd0ff calc(var(--ready) * 360deg), rgb(0 0 0 / 0.25) 0);
+}

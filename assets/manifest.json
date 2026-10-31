@@ -24,6 +24,42 @@
       "source": "Original voxel model (hero: beige spitz), written by Claude",
       "author": "Claude",
       "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/world/cottage.voxt",
+      "source": "Original voxel model (Grandma's cottage), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/world/doghouse.voxt",
+      "source": "Original voxel model (the doghouse), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/props/treat.voxt",
+      "source": "Original voxel model (a dog biscuit treat), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/enemies/goblin.voxt",
+      "source": "Original voxel model (a goblin), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/enemies/bug.voxt",
+      "source": "Original voxel model (a swarm bug), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/enemies/dragon.voxt",
+      "source": "Original voxel model (the dragon), written by Claude",
+      "author": "Claude",
+      "license": "original"
     }
   ]
 }

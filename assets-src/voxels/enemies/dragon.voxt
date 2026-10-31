@@ -1,0 +1,59 @@
+# The dragon: big, round and a bit dopey. Red with a golden belly, stubby
+# wings, little horns, sleepy eyes, a spiky back and a long tail with a
+# spade on the end. Faces +z; its centre is x = 15.
+# Parts: the body (everything but the wings), and the two wings, which flap
+# from their shoulders; each wing's root reaches into the body, so no gap opens.
+size 31 26 44
+voxel 0.075
+smooth 2
+colors
+  r dragonRed
+  d dragonDark
+  y dragonBelly
+  h horn
+  w white
+  k ink
+part body pivot 15 9.5 23
+# Stubby legs.
+ellipsoid 9.5 3 17 3 3.5 3 d
+ellipsoid 20.5 3 17 3 3.5 3 d
+ellipsoid 9.5 3 28 3 3.5 3 d
+ellipsoid 20.5 3 28 3 3.5 3 d
+# A big round body, golden underneath.
+ellipsoid 15 9.5 23 7.5 6.5 10 r
+paint ellipsoid 15 5.5 20 6 4.5 10 y
+# The tail, tapering away behind, with a spade at the tip.
+ellipsoid 15 7 33 4 3.5 4 r
+ellipsoid 15 5.5 37 2.8 2.5 3.4 r
+ellipsoid 15 4.5 40.5 1.8 1.6 2.6 r
+ellipsoid 15 4.5 42.5 2.6 0.9 1.4 d
+# Spikes down the back.
+ellipsoid 15 16.2 19 1 1.5 1.3 h
+ellipsoid 15 16.2 23 1 1.5 1.3 h
+ellipsoid 15 15.6 27 1 1.4 1.3 h
+ellipsoid 15 12.8 31 0.9 1.3 1.2 h
+# The neck and head: a big round head with a long snout.
+ellipsoid 15 13 13 4 4.5 4.5 r
+paint ellipsoid 15 10.5 11 3.4 3.4 3 y
+ellipsoid 15 17 8.5 5.5 4.5 5 r
+ellipsoid 15 15 3.5 3.8 2.8 4 r
+# Nostrils, horns, and big sleepy eyes.
+paint ellipsoid 13.4 16.4 0.5 0.7 0.6 1.5 k
+paint ellipsoid 16.6 16.4 0.5 0.7 0.6 1.5 k
+ellipsoid 11.5 21.6 9.5 1 2.4 1.2 h
+ellipsoid 18.5 21.6 9.5 1 2.4 1.2 h
+paint ellipsoid 11.6 18.6 5 1.7 1.5 3 w
+paint ellipsoid 18.4 18.6 5 1.7 1.5 3 w
+paint ellipsoid 11.9 18.2 5 0.9 0.9 3 k
+paint ellipsoid 18.1 18.2 5 0.9 0.9 3 k
+# Sleepy lids.
+paint ellipsoid 11.6 19.8 5 1.9 0.7 3 d
+paint ellipsoid 18.4 19.8 5 1.9 0.7 3 d
+
+# Stubby wings, up and out, flapping from the shoulders.
+part wingRight pivot 10.5 14.5 22 parent body
+ellipsoid 6 15 22 5 1.1 4.5 d
+ellipsoid 11 13.8 22 2 1.6 3 d
+part wingLeft pivot 19.5 14.5 22 parent body
+ellipsoid 24 15 22 5 1.1 4.5 d
+ellipsoid 19 13.8 22 2 1.6 3 d

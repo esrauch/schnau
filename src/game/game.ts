@@ -1,176 +1,331 @@
 /**
- * The controller (TECHNICAL.md §3): runs the simulation from
- * requestAnimationFrame in whole fixed steps, then draws. For now it's a
- * showcase: the schnauzer trots in circles, the spitz wanders and pauses, and
- * a tap makes them both bark (the first tap also starts the music).
+ * The controller (TECHNICAL.md §3): the start screen (pick a dog), then a run.
+ * It steps the simulation at a fixed 60 Hz with the controls' input, turns
+ * the simulation's events into sounds, effects and messages, poses the dog,
+ * and follows it with the camera. Rules live in sim/run.ts; this only plays them.
  */
 import * as THREE from 'three';
 import { SONGS } from '../audio/songs';
-import { common, hexToNumber } from '../content/palettes';
-import { View } from '../render/view';
-import { DOG_STYLES, DogAnimator, type DogStyle } from '../render/dogAnimator';
-import { CONTOUR_LAYER } from '../render/outline';
-import { toonMaterial } from '../render/toon';
-import { buildRig, getGeometry, voxelMaterial, type Rig } from '../voxel/models';
 import type { SfxId } from '../audio/sfx';
+import { DOGS, type DogKind, gameTuning as T } from '../content/gameTuning';
+import { Actors, type Blend } from '../render/actors';
+import { DOG_STYLES, DogAnimator } from '../render/dogAnimator';
+import { CONTOUR_LAYER } from '../render/outline';
+import { View } from '../render/view';
+import { buildYard } from '../render/yard';
+import {
+  DT,
+  NO_INPUT,
+  createRun,
+  step,
+  woofCharge,
+  type GameEvent,
+  type RunState,
+} from '../sim/run';
+import { Controls } from '../ui/controls';
+import { Hud } from '../ui/hud';
+import { buildRig, type Rig } from '../voxel/models';
 import { Conductor } from './conductor';
 
-/** The simulation's fixed step: 60 a second. */
-const DT = 1 / 60;
 /** Never try to catch up more than this much time in one frame (a background tab, a breakpoint). */
 const MAX_FRAME = 0.25;
-/** A dog's full trot, in world units a second. */
-const TROT_SPEED = 1.1;
-
-/** A hero dog in the showcase: its rig, animator, voice and where it's heading. */
-interface Dog {
-  readonly rig: Rig;
-  readonly animator: DogAnimator;
-  readonly voice: SfxId;
-  readonly velocity: THREE.Vector2;
-  /** Where it's heading at a given time (on the ground: x, z). */
-  readonly goal: (time: number) => THREE.Vector2;
-}
+const DOG_MODEL: Record<DogKind, string> = {
+  schnauzer: 'hero/blackSchnauzer',
+  spitz: 'hero/spitz',
+};
+/** Camera: pitched down this much, framing about this many units either side of the dog. */
+const CAMERA_PITCH = THREE.MathUtils.degToRad(56);
+const CAMERA_HALF_WIDTH = 2.7;
 
 export class Game {
   private readonly view: View;
   private readonly conductor = new Conductor();
-  /** The run's seed: every random choice in the simulation will come from it (src/sim/rng.ts). */
-  readonly seed: number;
-  private readonly dogs: Dog[] = [];
-  private time = 0;
+  private readonly controls: Controls;
+  private readonly hud: Hud;
+  private readonly actors: Actors;
+  private state: RunState | null = null;
+  private dog: { rig: Rig; animator: DogAnimator; facing: number } | null = null;
   private accumulator = 0;
   private last = performance.now();
+  private shake = 0;
+  /** Positions one step ago (the dog is id 0), for drawing between steps. */
+  private readonly previous = new Map<number, { x: number; z: number }>();
+  private readonly camTarget = new THREE.Vector3();
+  /** Enemy kinds already announced this run. */
+  private readonly announced = new Set<string>();
+  private overTimer: number | null = null;
+  /** "Zz" over the doghouse while the dog rests inside. */
+  private readonly snore: THREE.Sprite;
 
   constructor(
     canvas: HTMLCanvasElement,
-    private readonly ui: HTMLDivElement,
-    options: { seed: number; outline: boolean; contour: number | null },
+    ui: HTMLDivElement,
+    private readonly options: {
+      seed: number;
+      outline: boolean;
+      contour: number | null;
+      dog: DogKind | null;
+    },
   ) {
-    this.seed = options.seed;
-    this.view = new View(canvas, { fov: 45, outline: options.outline, contour: options.contour });
-    const { scene, camera } = this.view;
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2),
-      toonMaterial({ color: hexToNumber(common.ground) }),
-    );
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // The schnauzer trots a loop; the spitz potters between spots, stopping at each.
-    // Both keep inside a portrait phone's view, running mostly toward and away from the camera.
-    const spots: readonly [THREE.Vector2, ...THREE.Vector2[]] = [
-      new THREE.Vector2(0.5, 0.9),
-      new THREE.Vector2(-0.1, 0.5),
-      new THREE.Vector2(0.45, -0.7),
-    ];
-    this.addDog('hero/blackSchnauzer', DOG_STYLES.schnauzer, 'woof', 0, (time) => {
-      const a = time * 0.7;
-      return new THREE.Vector2(-0.3 + Math.cos(a) * 0.45, -0.3 + Math.sin(a) * 0.9);
-    });
-    this.addDog('hero/spitz', DOG_STYLES.spitz, 'yip', 1, (time) => {
-      const leg = Math.floor(time / 3.5) % spots.length;
-      return (spots[leg] ?? spots[0]).clone();
-    });
-    const placed: [string, number, number, number][] = [
-      ['props/crate', 1.6, -1.8, 0.3],
-      ['props/bush', -1.6, -1.4, 0],
-      ['props/bush', 1.9, 0.6, 2],
-    ];
-    for (const [id, x, z, turn] of placed) {
-      const mesh = new THREE.Mesh(getGeometry(id), voxelMaterial);
-      mesh.position.set(x, 0, z);
-      mesh.rotation.y = turn;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-    }
-
-    camera.position.set(0, 2.6, 4.6);
-    camera.lookAt(0, 0.45, 0);
-
-    this.ui.innerHTML = '<p class="hint">Tap to start</p>';
-    canvas.addEventListener('pointerdown', () => this.tap());
+    this.view = new View(canvas, { fov: 50, outline: options.outline, contour: options.contour });
+    buildYard(this.view.scene);
+    this.actors = new Actors(this.view.scene);
+    this.snore = snoreSprite();
+    this.snore.position.set(T.doghouse.x, 1.6, T.doghouse.z);
+    this.snore.visible = false;
+    this.view.scene.add(this.snore);
+    this.controls = new Controls(ui);
+    this.hud = new Hud(ui);
+    // Until a run starts: the schnauzer waits by its doghouse.
+    this.setDog('schnauzer', T.doghouse.x, T.doghouse.z + 0.9);
+    this.camTarget.set(T.doghouse.x, 0, T.doghouse.z);
+    if (options.dog) this.start(options.dog);
+    else this.hud.pickDog((dog) => this.start(dog));
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  private addDog(id: string, style: DogStyle, voice: SfxId, seed: number, goal: Dog['goal']): void {
-    const rig = buildRig(id);
+  private start(kind: DogKind): void {
+    if (!this.conductor.started) void this.conductor.start(SONGS[0]);
+    this.conductor.play('uiClick');
+    this.actors.clear();
+    this.announced.clear();
+    this.overTimer = null;
+    this.state = createRun(this.options.seed + Math.floor(Math.random() * 1e6), kind);
+    this.setDog(kind, this.state.dog.x, this.state.dog.z);
+  }
+
+  private setDog(kind: DogKind, x: number, z: number): void {
+    if (this.dog) this.view.scene.remove(this.dog.rig.root);
+    const rig = buildRig(DOG_MODEL[kind]);
     for (const mesh of rig.meshes) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.layers.enable(CONTOUR_LAYER);
     }
-    const start = goal(0);
-    rig.root.position.set(start.x, 0, start.y);
+    rig.root.position.set(x, 0, z);
     this.view.scene.add(rig.root);
-    this.dogs.push({
-      rig,
-      animator: new DogAnimator(rig, style, seed),
-      voice,
-      velocity: new THREE.Vector2(),
-      goal,
-    });
-  }
-
-  private tap(): void {
-    // The first tap also starts the audio; the barks don't wait for it (a bark that
-    // comes before the sounds are ready is just silent).
-    if (!this.conductor.started) {
-      this.ui.innerHTML = '';
-      void this.conductor.start(SONGS[0]);
-    }
-    this.dogs.forEach((dog, i) => {
-      // The second dog answers a beat later.
-      setTimeout(() => {
-        dog.animator.bark();
-        this.conductor.play(dog.voice);
-      }, i * 140);
-    });
-  }
-
-  /** Steer each dog toward its goal, then let its animator pose it. */
-  private moveDogs(dt: number): void {
-    for (const dog of this.dogs) {
-      const root = dog.rig.root;
-      const here = new THREE.Vector2(root.position.x, root.position.z);
-      const toGoal = dog.goal(this.time).sub(here);
-      // Slow down on arrival; a barking dog stands still.
-      const wanted = dog.animator.barking
-        ? 0
-        : Math.min(TROT_SPEED, toGoal.length() * 2.5) * (toGoal.length() > 0.05 ? 1 : 0);
-      const target = toGoal.normalize().multiplyScalar(wanted);
-      dog.velocity.lerp(target, Math.min(1, dt * 5));
-      root.position.x += dog.velocity.x * dt;
-      root.position.z += dog.velocity.y * dt;
-      const speed = dog.velocity.length();
-      if (speed > 0.05) {
-        // Turn to face the way it's going (the dog faces +z at rest).
-        const heading = Math.atan2(dog.velocity.x, dog.velocity.y);
-        let turn = heading - root.rotation.y;
-        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
-        root.rotation.y += turn * Math.min(1, dt * 8);
-      }
-      dog.animator.speed = speed / TROT_SPEED;
-      dog.animator.update(dt);
-    }
+    this.dog = { rig, animator: new DogAnimator(rig, DOG_STYLES[kind]), facing: 0 };
   }
 
   private frame(now: number): void {
-    this.accumulator += Math.min((now - this.last) / 1000, MAX_FRAME);
+    const dt = Math.min((now - this.last) / 1000, MAX_FRAME);
     this.last = now;
-    while (this.accumulator >= DT) {
-      this.step();
-      this.accumulator -= DT;
-    }
+    const state = this.state;
+    if (state) {
+      this.accumulator += dt;
+      while (this.accumulator >= DT) {
+        this.previous.clear();
+        this.previous.set(0, { x: state.dog.x, z: state.dog.z });
+        for (const e of state.enemies) this.previous.set(e.id, { x: e.x, z: e.z });
+        const input = state.outcome === 'playing' ? this.controls.read() : NO_INPUT;
+        for (const e of step(state, input)) this.onEvent(e, state);
+        this.accumulator -= DT;
+      }
+      this.syncRun(state, dt, { alpha: this.accumulator / DT, previous: this.previous });
+    } else if (this.dog) this.dog.animator.update(dt);
+    this.followCamera(dt);
     this.view.render();
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  /** One fixed step. The game's pure simulation will live in src/sim/ and run from here. */
-  private step(): void {
-    this.time += DT;
-    this.moveDogs(DT);
+  private syncRun(state: RunState, dt: number, blend: Blend): void {
+    const dogAt = this.dogPosition(state, blend);
+    const stats = DOGS[state.dog.kind];
+    const charge = woofCharge(state);
+    const charging = state.dog.held !== null && state.dog.held >= stats.woof.holdToCharge;
+    this.actors.sync(
+      state,
+      dt,
+      blend,
+      charging
+        ? {
+            amount: charge,
+            radius: stats.woof.radius[0] + (stats.woof.radius[1] - stats.woof.radius[0]) * charge,
+            ...dogAt,
+          }
+        : null,
+    );
+    this.controls.show({
+      charge,
+      dashReady: 1 - state.dog.dashCooldown / stats.dash.cooldown,
+      woofReady: state.dog.woofCooldown <= 0,
+      enabled: state.dog.mode === 'free' && state.outcome === 'playing',
+    });
+    const dragon = state.enemies.find((e) => e.kind === 'dragon');
+    this.hud.update({
+      jar: state.jar,
+      hearts: state.dog.hearts,
+      maxHearts: stats.hearts,
+      bones: state.bones,
+      dragon: dragon ? dragon.courage / dragon.maxCourage : null,
+    });
+    this.poseDog(state, dogAt, dt);
+    this.pointAtOffscreen(state);
   }
+
+  /** The dog on screen: between its last two steps. */
+  private dogPosition(state: RunState, blend: Blend): { x: number; z: number } {
+    const prev = blend.previous.get(0) ?? state.dog;
+    return {
+      x: prev.x + (state.dog.x - prev.x) * blend.alpha,
+      z: prev.z + (state.dog.z - prev.z) * blend.alpha,
+    };
+  }
+
+  /** Arrows at the screen's edge toward enemies out of view, so nothing sneaks up unseen. */
+  private pointAtOffscreen(state: RunState): void {
+    const { camera } = this.view;
+    const v = new THREE.Vector3();
+    const marks: { x: number; y: number; angle: number; kind: string }[] = [];
+    for (const e of state.enemies) {
+      if (e.mode === 'panic' || e.mode === 'leave') continue;
+      v.set(e.x, 0.4, e.z).project(camera);
+      const inside = Math.abs(v.x) < 0.95 && Math.abs(v.y) < 0.92 && v.z < 1;
+      if (inside) continue;
+      // Behind the camera, the projection flips: point the other way.
+      if (v.z > 1) v.multiplyScalar(-1);
+      const scale = 1 / Math.max(Math.abs(v.x) / 0.9, Math.abs(v.y) / 0.82, 1);
+      marks.push({ x: v.x * scale, y: v.y * scale, angle: Math.atan2(-v.y, v.x), kind: e.kind });
+    }
+    this.hud.pointers(marks);
+  }
+
+  private poseDog(state: RunState, at: { x: number; z: number }, dt: number): void {
+    if (!this.dog) return;
+    const { rig, animator } = this.dog;
+    const d = state.dog;
+    rig.root.position.x = at.x;
+    rig.root.position.z = at.z;
+    // Turn smoothly toward where the dog faces (or where it's going, heading home).
+    const target =
+      d.mode === 'free'
+        ? d.facing
+        : Math.hypot(d.vx, d.vz) > 0.1
+          ? Math.atan2(d.vx, d.vz)
+          : this.dog.facing;
+    const turn = Math.atan2(Math.sin(target - this.dog.facing), Math.cos(target - this.dog.facing));
+    this.dog.facing += turn * Math.min(1, dt * 16);
+    rig.root.rotation.y = this.dog.facing;
+    // Trot at its normal speed, gallop when dashing; eased, so a dash flows into a
+    // gallop and back out of it instead of snapping between gaits.
+    const gait = d.dashTime > 0 ? 2 : Math.hypot(d.vx, d.vz) / DOGS[d.kind].speed;
+    animator.speed += (gait - animator.speed) * Math.min(1, dt * 12);
+    animator.update(dt);
+    // Inside the doghouse while it rests (with a "Zz" over the roof); blinking while it can't be hurt.
+    const resting = d.mode === 'resting';
+    const blink = d.safe > 0 && d.mode === 'free' && Math.floor(d.safe * 12) % 2 === 1;
+    rig.root.visible = !resting && !blink;
+    this.snore.visible = resting;
+    if (resting) {
+      const t = performance.now() / 1000;
+      this.snore.position.y = 1.6 + Math.sin(t * 2) * 0.06;
+      this.snore.material.rotation = Math.sin(t * 1.5) * 0.15;
+    }
+  }
+
+  private onEvent(e: GameEvent, state: RunState): void {
+    this.actors.onEvent(e, state);
+    const sfx = (id: SfxId): void => this.conductor.play(id);
+    switch (e.type) {
+      case 'yip':
+        this.dog?.animator.bark();
+        sfx('yip');
+        break;
+      case 'woof':
+        this.dog?.animator.bark();
+        sfx('woof');
+        this.shake = 0.12 + 0.1 * e.charge;
+        break;
+      case 'dash':
+        sfx('whoosh');
+        break;
+      case 'spawn':
+        if (!this.announced.has(e.kind)) {
+          this.announced.add(e.kind);
+          if (e.kind === 'goblin') this.hud.say('Goblins! Yip at them!');
+          else if (e.kind === 'bugs') this.hud.say('Bugs! Hold WOOF!', 2.4);
+        }
+        break;
+      case 'dragon':
+        this.hud.say('A DRAGON!', 2.6);
+        sfx('thud');
+        break;
+      case 'panic':
+        sfx('blip');
+        break;
+      case 'returned':
+        sfx('chime');
+        break;
+      case 'stolen':
+        this.hud.say('A treat got away!', 1.4);
+        break;
+      case 'dogHurt':
+        sfx('thud');
+        this.shake = 0.15;
+        break;
+      case 'pooped':
+        this.hud.say('Pooped! Off to the doghouse…', 2.2);
+        break;
+      case 'restored':
+        this.hud.say('Back on guard!', 1.4);
+        break;
+      case 'fireLand':
+        sfx('thud');
+        this.shake = Math.max(this.shake, e.hit ? 0.25 : 0.1);
+        break;
+      case 'won':
+      case 'lost':
+        if (e.type === 'won') sfx('chime');
+        this.overTimer = window.setTimeout(() => {
+          this.hud.end(e.type === 'won', state.jar, state.bones, () => this.start(state.dog.kind));
+        }, 1600);
+        break;
+    }
+  }
+
+  /** Follow the dog from behind and above, far enough back to see a few units either side. */
+  private followCamera(dt: number): void {
+    const { camera } = this.view;
+    // Follow the dog as drawn (between steps), so the camera glides too.
+    const dog = this.state ? this.dog?.rig.root.position : undefined;
+    if (dog) this.camTarget.lerp(new THREE.Vector3(dog.x, 0, dog.z), Math.min(1, dt * 5));
+    const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+    const halfHFov = Math.atan(Math.tan(halfFov) * camera.aspect);
+    const dist = THREE.MathUtils.clamp(CAMERA_HALF_WIDTH / Math.tan(halfHFov), 7, 14);
+    // Look a little ahead (up the screen), so more of the yard shows in front.
+    const look = this.camTarget.clone().add(new THREE.Vector3(0, 0.3, -0.6));
+    camera.position.set(
+      look.x,
+      look.y + Math.sin(CAMERA_PITCH) * dist,
+      look.z + Math.cos(CAMERA_PITCH) * dist,
+    );
+    this.shake = Math.max(0, this.shake - dt);
+    if (this.shake > 0) {
+      camera.position.x += (Math.random() - 0.5) * this.shake * 0.6;
+      camera.position.y += (Math.random() - 0.5) * this.shake * 0.6;
+    }
+    camera.lookAt(look);
+  }
+}
+
+/** A sleepy "Zz" for over the doghouse. */
+function snoreSprite(): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.font = '900 46px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#1f2430';
+    ctx.strokeText('Zz', 64, 48);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('Zz', 64, 48);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));
+  sprite.scale.set(1, 0.5, 1);
+  return sprite;
 }

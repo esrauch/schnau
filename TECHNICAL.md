@@ -1,6 +1,6 @@
 # Schnau: Technical
 
-How we build it: the stack, the architecture, and how assets get made. The tech setup is shared with `~/Code/vox` (Get Jack Back); the gameplay, art and sound are this game's own. Gameplay and theme docs will come later.
+How we build it: the stack, the architecture, and how assets get made. What the game *is* lives in [GAMEPLAY.md](GAMEPLAY.md). The tech setup is shared with `~/Code/vox` (Get Jack Back); the gameplay, art and sound are this game's own. Gameplay and theme docs will come later.
 
 ---
 
@@ -25,10 +25,11 @@ How we build it: the stack, the architecture, and how assets get made. The tech 
 
 ## 3. Architecture
 
-- **The simulation is separate from rendering.** The sim (to live in `src/sim/`) is pure TypeScript: no three.js, DOM or `Math.random`. It advances at a fixed 60 steps a second; every random choice comes from the seeded `createRng` (`src/sim/rng.ts`).
-- **The controller** (`src/game/game.ts`) runs the sim from `requestAnimationFrame` with an accumulator, spending real time in whole fixed steps, then draws.
-- **The renderer** reads the state every frame and never changes it; it reacts to sim events with sounds and effects.
-- `src/main.ts` reads URL options (`?seed=N`) and builds the `Game`; in dev builds it is `window.game`.
+- **The simulation is separate from rendering.** `src/sim/run.ts` holds every rule (GAMEPLAY.md) as plain TypeScript: no three.js, DOM or `Math.random`. `createRun(seed, dog)` makes a `RunState`; `step(state, input)` advances it one fixed tick (`DT`, 60 a second), **changing it in place**, and returns `GameEvent`s (yip, woof, panic, dropped, dogHurt, fireWarn, won…). Every random choice comes from `createRng(deriveSeed(seed, …))` (`src/sim/rng.ts`), so a run replays exactly from its seed and inputs. The numbers are all in `src/content/gameTuning.ts` (dogs, enemies, the yard, the waves).
+- **The controller** (`src/game/game.ts`) shows the start screen (pick a dog), then runs the sim from `requestAnimationFrame` in whole fixed steps with the controls' input, turns events into sounds (`Conductor`), effects and HUD messages, poses the dog's rig, and follows it with the camera (pitched 56°, framing about 2.7 units either side of the dog whatever the screen's shape).
+- **The renderer only reads the state:** `render/yard.ts` (the lawn, cottage, doghouse, the ring of bushes), `render/actors.ts` (enemies and their courage pips, the bug swarms as one instanced mesh, dropped treats, fire circles filling up, bark waves, the WOOF's reach ring), the dog's rig and `DogAnimator`.
+- **UI** (`src/ui/`): `controls.ts` (a floating direction stick on the left; Dash and Woof on the right, the Woof button filling as it charges; WASD/arrows, Shift and Space on a desktop), `hud.ts` (treats, bones, hearts, the dragon's courage bar, messages, the start and end screens, and arrows toward off-screen enemies).
+- URL options: `?seed=N`, `?dog=schnauzer|spitz` (skips the start screen), `?outline=0`, `?contour=white|black|off`. In dev builds the game is `window.game`.
 
 ## 4. Rendering and UI
 
@@ -136,6 +137,6 @@ A static site. `.github/workflows/deploy.yml` runs `npm run check` and deploys `
 | `npm run check` | Lint, Prettier check, typecheck, tests, asset-license check. Run before every commit. |
 | `npm run build` / `build:release` | Build with / without the dev pages. |
 | `npm run preview-models [--close \| --anim=trot] [ids…]` | PNG turntables → `previews/<id>.png`, plus a contact sheet per folder; `--close` for big detail views; `--anim=` for a rigged dog's animation as a strip of frames. |
-| `npm run screenshot [seed] [query] [name]` | Phone-size (375×812 @2x) capture → `previews/<name>.png`. `TAP=<ms>` taps the screen first and captures that long after. |
+| `npm run screenshot [seed] [query] [name]` | Phone-size (375×812 @2x) capture → `previews/<name>.png`. `WAIT=<ms>` runs that long first; `TAP=<ms>` taps the screen and captures that long after; `KEY=Space HOLD=<ms>` holds a key (captures `<name>-hold.png` during it). |
 | `npm run render-audio [song:id \| stem:song/stem \| sfx:id …]` | WAVs and waveform PNGs in `previews/audio/`, with levels and a loop-seam check. |
 | `npm run import-vox -- file.vox folder/name [voxelSize]` | Convert a MagicaVoxel model to `.voxt`. |

@@ -5,6 +5,9 @@
  *   npm run screenshot                    → previews/game.png (seed 8)
  *   npm run screenshot -- 3 foo=1 name    → seed 3, extra URL params, saved as previews/name.png
  *   TAP=250 npm run screenshot            → tap the middle of the screen, then capture 250 ms later
+ *   WAIT=8000 npm run screenshot          → let it run 8 s before capturing (default 1.5 s)
+ *   KEY=Space HOLD=700 npm run screenshot → hold a key 700 ms: captures <name>-hold.png while it's
+ *                                           down, then <name>.png just after letting go
  *
  * Uses the system Chrome through playwright-core.
  */
@@ -35,12 +38,19 @@ try {
   });
   page.on('pageerror', (e) => console.error(`page error: ${e.message}`));
   await page.goto(`http://localhost:${port}/?seed=${seed}${extraQuery ? `&${extraQuery}` : ''}`);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(Number(process.env.WAIT ?? 1500));
   if (process.env.TAP) {
     await page.mouse.click(187, 400);
     await page.waitForTimeout(Number(process.env.TAP));
   }
   mkdirSync(join(ROOT, 'previews'), { recursive: true });
+  if (process.env.KEY) {
+    await page.keyboard.down(process.env.KEY);
+    await page.waitForTimeout(Number(process.env.HOLD ?? 100));
+    await page.screenshot({ path: join(ROOT, 'previews', `${name}-hold.png`) });
+    await page.keyboard.up(process.env.KEY);
+    await page.waitForTimeout(120);
+  }
   const file = join(ROOT, 'previews', `${name}.png`);
   await page.screenshot({ path: file });
   console.log(file.replace(`${ROOT}/`, ''));

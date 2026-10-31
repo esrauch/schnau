@@ -1,0 +1,21 @@
+# The dog's house: red walls, a white roof, an arched doorway facing +z.
+size 15 14 15
+voxel 0.07
+colors
+  r doghouseRed
+  w white
+  k ink
+box 1 0 1 13 7 13 r
+box 0 8 0 14 8 14 w
+box 1 9 0 13 9 14 w
+box 2 10 0 12 10 14 w
+box 3 11 0 11 11 14 w
+box 4 12 0 10 12 14 w
+box 5 13 0 9 13 14 w
+box 2 8 1 12 8 13 r
+box 3 9 1 11 9 13 r
+box 4 10 1 10 10 13 r
+box 5 11 1 9 11 13 r
+box 6 12 1 8 12 13 r
+paint box 5 0 1 9 5 1 k
+paint box 6 6 1 8 6 1 k

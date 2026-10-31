@@ -1,0 +1,12 @@
+# One little bug of a swarm: a round purple beetle with pale wings up.
+size 9 6 7
+voxel 0.03
+smooth 1
+colors
+  b bugPurple
+  w wing
+  k ink
+ellipsoid 4 2.2 3.4 2.2 1.8 2.6 b
+ellipsoid 4 2.2 0.9 1.4 1.3 1.1 k
+ellipsoid 1.6 4.2 3.8 1.5 0.6 2 w
+ellipsoid 6.4 4.2 3.8 1.5 0.6 2 w

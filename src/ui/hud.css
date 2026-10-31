@@ -1,0 +1,186 @@
+/* The HUD (ui/hud.ts): bold, round, friendly; readable over a sunny garden. */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: system-ui, sans-serif;
+  color: var(--bone);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+}
+
+.hud-top {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.hud-top > div {
+  background: rgb(31 36 48 / 0.55);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.hud-top b {
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.hud-hearts {
+  margin-left: auto;
+  font-size: 22px;
+  letter-spacing: 2px;
+  color: #ff6b81;
+}
+
+.hud-dragon {
+  position: absolute;
+  top: calc(56px + env(safe-area-inset-top));
+  left: 50%;
+  width: min(70%, 320px);
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.hud-dragon.shown {
+  display: flex;
+}
+
+.hud-dragon-bar {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: rgb(31 36 48 / 0.6);
+  overflow: hidden;
+}
+
+.hud-dragon-fill {
+  height: 100%;
+  background: #ff7a45;
+  transition: width 0.25s;
+}
+
+.hud-message {
+  position: absolute;
+  top: 26%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-weight: 900;
+  font-size: 30px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+
+.hud-message.shown {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.hud-screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgb(31 36 48 / 0.45);
+  padding: 20px;
+}
+
+.hud-screen.shown {
+  display: flex;
+}
+
+.hud-card {
+  max-width: 340px;
+  text-align: center;
+  background: var(--bone);
+  color: var(--ink);
+  text-shadow: none;
+  border-radius: 22px;
+  padding: 22px 20px;
+  box-shadow: 0 8px 0 rgb(0 0 0 / 0.25);
+}
+
+.hud-card h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+}
+
+.hud-card p {
+  margin: 8px 0;
+  line-height: 1.35;
+}
+
+.hud-hint {
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.hud-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.hud-buttons button {
+  flex: 1;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 10px;
+  background: var(--accent);
+  color: var(--ink);
+  font:
+    800 17px/1.2 system-ui,
+    sans-serif;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.25);
+}
+
+.hud-buttons small {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+/* Off-screen enemies: a chevron at the edge, pointing their way. Bright colours with a dark
+   outline, so they read on the green lawn. */
+.hud-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  border-left: 20px solid #ff6b4a;
+  filter: drop-shadow(0 0 1.5px #1f2430) drop-shadow(0 0 1.5px #1f2430)
+    drop-shadow(0 2px 0 rgb(0 0 0 / 0.35));
+}
+
+.hud-arrow[data-kind='goblin'] {
+  border-left-color: #ffd23f;
+}
+
+.hud-arrow[data-kind='bugs'] {
+  border-left-color: #b98cff;
+}
+
+.hud-arrow[data-kind='dragon'] {
+  border-top-width: 16px;
+  border-bottom-width: 16px;
+  border-left-width: 26px;
+  border-left-color: #ff6b4a;
+}

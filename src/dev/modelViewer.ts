@@ -1,8 +1,9 @@
 /**
  * Dev page for voxel models. Interactive: pick a model and it spins on a
  * field tile, drawn as in the game (cel shading, line art, the heroes'
- * contour). A rigged dog gets an animation bar: idle, walk, trot and bark,
- * slow motion, and spin on or off (drag to turn it by hand).
+ * contour). A rigged dog gets an animation bar: idle, walk, trot, gallop and
+ * bark; the dragon flaps, with Fire! (rearing up) and Panic; both get slow
+ * motion, and spin on or off (drag to turn it by hand).
  * Render modes produce fixed images for the headless preview script, so
  * Claude can look at a model and iterate (TECHNICAL.md §6).
  */
@@ -12,8 +13,16 @@ import { syncCelSun, toonMaterial } from '../render/toon';
 import { greedyMesh } from '../voxel/mesh';
 import { surfaceNets } from '../voxel/smooth';
 import { DOG_STYLES, DOG_STYLE_FOR_MODEL, DogAnimator } from '../render/dogAnimator';
+import { poseDragon } from '../render/dragonPose';
 import { CONTOUR_LAYER, Outline } from '../render/outline';
-import { MODEL_IDS, buildRig, getGeometry, getModel, voxelMaterial } from '../voxel/models';
+import {
+  MODEL_IDS,
+  buildRig,
+  getGeometry,
+  getModel,
+  voxelMaterial,
+  type Rig,
+} from '../voxel/models';
 
 const params = new URLSearchParams(location.search);
 
@@ -211,6 +220,9 @@ function interactive(): void {
   const outline = new Outline({ contour: 0xffffff });
   let current: THREE.Object3D | null = null;
   let animator: DogAnimator | null = null;
+  /** The dragon, while it's shown: its rig, seconds since Fire! was pressed, and whether it's panicking. */
+  let dragon: { rig: Rig; sinceFire: number; panic: boolean } | null = null;
+  let time = 0;
   /** The shown model's size: the camera frames it, whatever its size and the screen's shape. */
   let size = new THREE.Vector3(1, 1, 1);
   const asked = params.get('anim');
@@ -226,11 +238,17 @@ function interactive(): void {
     history.replaceState(null, '', `?${q}`);
   };
 
-  // The animation bar, shown for rigged dogs only.
+  // The animation bar, for the animated models: each button is for the dogs, the dragon, or both.
   const buttons = new Map<string, HTMLButtonElement>();
-  const addButton = (key: string, label: string, onClick: () => void): void => {
+  const addButton = (
+    key: string,
+    label: string,
+    onClick: () => void,
+    shownFor: 'dog' | 'dragon' | 'both' = 'dog',
+  ): void => {
     const button = document.createElement('button');
     button.textContent = label;
+    button.dataset.for = shownFor;
     button.addEventListener('click', onClick);
     anims.append(button);
     buttons.set(key, button);
@@ -239,6 +257,7 @@ function interactive(): void {
     for (const g of ['idle', 'walk', 'trot', 'gallop'] as const)
       buttons.get(g)?.classList.toggle('on', gait === g);
     buttons.get('slow')?.classList.toggle('on', slow);
+    buttons.get('panic')?.classList.toggle('on', dragon?.panic ?? false);
     buttons.get('spin')?.classList.toggle('on', spin);
   };
   const setGait = (g: Gait): void => {
@@ -247,21 +266,48 @@ function interactive(): void {
     syncUrl();
   };
   const bark = (): void => animator?.bark();
+  const fire = (): void => {
+    if (dragon) dragon.sinceFire = 0;
+  };
   addButton('idle', '1 Idle', () => setGait('idle'));
   addButton('walk', '2 Walk', () => setGait('walk'));
   addButton('trot', '3 Trot', () => setGait('trot'));
   addButton('gallop', '4 Gallop', () => setGait('gallop'));
   addButton('bark', 'Space: Bark!', bark);
-  addButton('slow', 'Slow-mo', () => {
-    slow = !slow;
-    refreshBar();
-  });
-  addButton('spin', 'Spin', () => {
-    spin = !spin;
-    refreshBar();
-  });
+  addButton('fire', 'Space: Fire!', fire, 'dragon');
+  addButton(
+    'panic',
+    'Panic',
+    () => {
+      if (dragon) dragon.panic = !dragon.panic;
+      refreshBar();
+    },
+    'dragon',
+  );
+  addButton(
+    'slow',
+    'Slow-mo',
+    () => {
+      slow = !slow;
+      refreshBar();
+    },
+    'both',
+  );
+  addButton(
+    'spin',
+    'Spin',
+    () => {
+      spin = !spin;
+      refreshBar();
+    },
+    'both',
+  );
   refreshBar();
   window.addEventListener('keydown', (e) => {
+    if (dragon && e.key === ' ') {
+      e.preventDefault();
+      fire();
+    }
     if (!animator) return;
     if (e.key === '1') setGait('idle');
     else if (e.key === '2') setGait('walk');
@@ -296,7 +342,14 @@ function interactive(): void {
     const m = getModel(id);
     const style = DOG_STYLE_FOR_MODEL[id];
     let meshes: THREE.Mesh[];
-    if (style) {
+    dragon = null;
+    if (id === 'enemies/dragon') {
+      const rig = buildRig(id);
+      group.add(rig.root);
+      meshes = [...rig.meshes];
+      animator = null;
+      dragon = { rig, sinceFire: Infinity, panic: false };
+    } else if (style) {
       const rig = buildRig(id);
       group.add(rig.root);
       meshes = [...rig.meshes];
@@ -320,7 +373,12 @@ function interactive(): void {
     group.add(tile(0));
     scene.add(group);
     current = group;
-    anims.hidden = !animator;
+    anims.hidden = !animator && !dragon;
+    const kind = dragon ? 'dragon' : 'dog';
+    for (const button of buttons.values()) {
+      button.hidden = button.dataset.for !== 'both' && button.dataset.for !== kind;
+    }
+    refreshBar();
     const quads = (m.smooth > 0 ? surfaceNets(m, m.smooth) : greedyMesh(m)).quads;
     info.textContent =
       `${id}: ${m.width}×${m.height}×${m.depth} voxels at ${m.scale} → ` +
@@ -354,7 +412,15 @@ function interactive(): void {
   renderer.setAnimationLoop((now) => {
     const dt = Math.min(0.1, (now - last) / 1000) * (slow ? 0.25 : 1);
     last = now;
+    time += dt;
     if (spin) yaw = (yaw + dt * 25) % 360;
+    if (dragon) {
+      // Fire!: rear up over half a second (as the game does before fire lands), then settle.
+      dragon.sinceFire += dt;
+      const t = dragon.sinceFire;
+      const rear = t < 0.5 ? t / 0.5 : t < 0.8 ? 1 - (t - 0.5) / 0.3 : 0;
+      poseDragon(dragon.rig, time, rear, dragon.panic);
+    }
     if (animator) {
       // Ease between gaits, as a dog speeding up or slowing down would.
       animator.speed += (GAIT_SPEED[gait] - animator.speed) * Math.min(1, dt * 4);

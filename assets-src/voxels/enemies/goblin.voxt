@@ -1,0 +1,35 @@
+# A goblin: a big green head with long floppy ears, a bulb nose and yellow
+# eyes, a scruffy brown tunic, stubby limbs. Faces +z; its centre is x = 8.
+size 17 23 12
+voxel 0.034
+smooth 2
+colors
+  g goblinGreen
+  d goblinDark
+  t tunic
+  y goblinEye
+  k ink
+# Legs and big feet.
+ellipsoid 5.6 2.4 6 1.3 2.6 1.3 d
+ellipsoid 10.4 2.4 6 1.3 2.6 1.3 d
+ellipsoid 5.6 0.8 5 1.6 1 2.2 d
+ellipsoid 10.4 0.8 5 1.6 1 2.2 d
+# A pear of a body in a tunic.
+ellipsoid 8 7.6 6 3.8 3.8 3.2 t
+# Arms.
+ellipsoid 3.6 8 6 1.1 2.8 1.1 g
+ellipsoid 12.4 8 6 1.1 2.8 1.1 g
+# The head: big and round, with long ears sticking out sideways.
+ellipsoid 8 15 6 4.6 4.2 4.2 g
+ellipsoid 2.4 16.4 6.4 2.4 0.9 1.1 g
+ellipsoid 13.6 16.4 6.4 2.4 0.9 1.1 g
+ellipsoid 0.8 17 6.6 1.2 0.7 0.8 d
+ellipsoid 15.2 17 6.6 1.2 0.7 0.8 d
+# A bulb of a nose, and a toothy grin.
+ellipsoid 8 14 1.8 1.4 1.3 1.3 d
+paint ellipsoid 8 11.8 2.6 2.2 0.4 2 k
+# Yellow eyes with dark pupils.
+paint ellipsoid 6 16.2 2.5 1.2 1.2 2.5 y
+paint ellipsoid 10 16.2 2.5 1.2 1.2 2.5 y
+paint ellipsoid 6.2 16 2.5 0.55 0.6 2.5 k
+paint ellipsoid 9.8 16 2.5 0.55 0.6 2.5 k

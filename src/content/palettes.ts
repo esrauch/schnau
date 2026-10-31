@@ -56,6 +56,26 @@ export const voxel = {
   eyeBrown: '#26160f',
   collarTeal: '#1d8c8c',
   silver: '#c9ced8',
+  // Grandma's cottage and the doghouse.
+  wallCream: '#fbe7c2',
+  roofRed: '#d9573b',
+  doorBlue: '#3d7ea6',
+  glass: '#a7d8f0',
+  doghouseRed: '#d94a3d',
+  biscuit: '#d99b55',
+  // The goblin: green, big-eared, in a scruffy brown tunic, with yellow eyes.
+  goblinGreen: '#86c443',
+  goblinDark: '#5b9230',
+  tunic: '#8a5a33',
+  goblinEye: '#ffe14d',
+  // Bugs: little purple beetles with pale wings.
+  bugPurple: '#6b3fa0',
+  wing: '#e8eefc',
+  // The dragon: a big round red dragon with a golden belly.
+  dragonRed: '#e2513d',
+  dragonDark: '#a8362c',
+  dragonBelly: '#ffd27a',
+  horn: '#f3e6c4',
   leaf: '#3fae3c',
   leafLight: '#7fd34a',
   bark: '#9a6438',
