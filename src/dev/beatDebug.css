@@ -1,0 +1,149 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  background: #2b2140;
+  color: #f7f1e3;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+header {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+header a {
+  color: #8fd3ff;
+}
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pulse-wrap {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+}
+
+#pulse {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: #ff8a1f;
+  box-shadow: 0 4px 0 #b55a0c;
+  will-change: transform;
+}
+
+#bar {
+  display: flex;
+  gap: 8px;
+}
+
+#bar span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4a3d66;
+}
+
+#bar span.on {
+  background: #9cff2e;
+}
+
+#verdict {
+  font-size: 1.4rem;
+  font-weight: 800;
+  min-height: 1.8rem;
+}
+
+#verdict.onBeat {
+  color: #9cff2e;
+}
+
+#verdict.offBeat {
+  color: #ff8a1f;
+}
+
+#histogram {
+  width: 100%;
+  height: 90px;
+  flex: none;
+  display: block;
+}
+
+#stats {
+  margin: 0 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  opacity: 0.85;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.controls input[type='range'] {
+  width: 90px;
+  vertical-align: middle;
+}
+
+button {
+  font: inherit;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  border: 0;
+  border-radius: 8px;
+  background: #a259ff;
+  color: white;
+}
+
+button:disabled {
+  opacity: 0.4;
+}
+
+#pad {
+  flex: 1;
+  min-height: 140px;
+  margin: 0.5rem 0.75rem 0.75rem;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  background: #3b2f57;
+  touch-action: none;
+  transition: background 0.12s;
+}
+
+#pad.flash-onBeat {
+  background: #4f7f2a;
+  transition: none;
+}
+
+#pad.flash-offBeat {
+  background: #7a4a24;
+  transition: none;
+}

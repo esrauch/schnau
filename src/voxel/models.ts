@@ -1,0 +1,75 @@
+/**
+ * Every voxel model in assets-src/voxels, loaded as text by Vite (so edits
+ * hot-reload), parsed once and meshed once into cached three.js geometry.
+ */
+import * as THREE from 'three';
+import { greedyMesh } from './mesh';
+import { parseVoxt, type VoxelModel } from './voxt';
+
+const sources = import.meta.glob('/assets-src/voxels/**/*.voxt', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+/** Model id = path under assets-src/voxels without the extension, e.g. "props/crate". */
+const byId = new Map(
+  Object.entries(sources).map(([path, text]) => [
+    path.replace(/^\/assets-src\/voxels\//, '').replace(/\.voxt$/, ''),
+    text,
+  ]),
+);
+
+export const MODEL_IDS: readonly string[] = [...byId.keys()].sort();
+
+const models = new Map<string, VoxelModel>();
+const geometries = new Map<string, THREE.BufferGeometry>();
+
+export function getModel(id: string): VoxelModel {
+  let model = models.get(id);
+  if (!model) {
+    const text = byId.get(id);
+    if (text === undefined) throw new Error(`No voxel model "${id}"`);
+    model = parseVoxt(id, text);
+    models.set(id, model);
+  }
+  return model;
+}
+
+/** The meshed geometry for a model, with vertex colors. Shared by every mesh that uses it. */
+export function getGeometry(id: string): THREE.BufferGeometry {
+  let geometry = geometries.get(id);
+  if (!geometry) {
+    geometry = buildGeometry(getModel(id));
+    geometries.set(id, geometry);
+  }
+  return geometry;
+}
+
+export function buildGeometry(model: VoxelModel): THREE.BufferGeometry {
+  const mesh = greedyMesh(model);
+  // THREE.Color converts the sRGB palette into the linear working space.
+  const palette = model.colors.map((hex) => new THREE.Color(hex));
+  const colors = new Float32Array(mesh.colorIndex.length * 3);
+  mesh.colorIndex.forEach((ci, i) => {
+    const c = palette[ci] ?? new THREE.Color(0xff00ff);
+    colors.set([c.r, c.g, c.b], i * 3);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(mesh.normals, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** One material for every voxel model: flat-shaded vertex colors, no textures. */
+export const voxelMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+/** The model's height in world units (for placing things on top of it). */
+export function modelHeight(id: string): number {
+  const m = getModel(id);
+  return m.height * m.scale;
+}

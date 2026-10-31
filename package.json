@@ -1,0 +1,41 @@
+{
+  "name": "schnau",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "npm run check-assets && tsc --noEmit && vite build",
+    "build:release": "npm run check-assets && tsc --noEmit && RELEASE=1 vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "check-assets": "tsx tools/check-assets.ts",
+    "import-vox": "tsx tools/voxels/import-vox.ts",
+    "preview-models": "tsx tools/voxels/preview.ts",
+    "render-audio": "tsx tools/audio/render.ts",
+    "screenshot": "tsx tools/screenshot.ts",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run check-assets"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "@types/three": "^0.186.0",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "playwright-core": "^1.64.1",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}

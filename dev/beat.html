@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Beat Clock · Dev</title>
+    <link rel="stylesheet" href="/src/dev/beatDebug.css" />
+  </head>
+  <body>
+    <!-- Dev tool (beat clock). Excluded by `npm run build:release`. -->
+    <header>
+      <a href="./">← dev</a>
+      <strong>Beat clock</strong>
+    </header>
+
+    <section class="readout">
+      <div class="pulse-wrap"><div id="pulse"></div></div>
+      <div id="bar"><span></span><span></span><span></span><span></span></div>
+      <div id="verdict">Tap Start</div>
+    </section>
+
+    <canvas id="histogram"></canvas>
+    <pre id="stats"></pre>
+
+    <section class="controls">
+      <button id="start">Start</button>
+      <button id="calibrate" disabled>Calibrate</button>
+      <label
+        >BPM <input id="bpm" type="range" min="60" max="180" step="1" /><b id="bpmValue"></b
+      ></label>
+      <label
+        >On-Beat ±<input id="window" type="range" min="20" max="150" step="5" /><b
+          id="windowValue"
+        ></b
+        >ms</label
+      >
+      <label><input id="haptics" type="checkbox" /> Haptic tick</label>
+      <button id="resetOffset">Reset offset</button>
+    </section>
+
+    <div id="pad">TAP HERE ON THE BEAT</div>
+
+    <script type="module" src="/src/dev/beatDebug.ts"></script>
+  </body>
+</html>

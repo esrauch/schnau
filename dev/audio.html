@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sound Board · Dev</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0.5rem 0.75rem 2rem;
+        font-family: system-ui, sans-serif;
+        background: #2b2140;
+        color: #f7f1e3;
+      }
+      header {
+        display: flex;
+        gap: 1rem;
+        align-items: baseline;
+      }
+      a {
+        color: #8fd3ff;
+      }
+      h2 {
+        font-size: 1rem;
+        margin: 1rem 0 0.4rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        align-items: center;
+      }
+      button {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+        border: 0;
+        border-radius: 8px;
+        background: #a259ff;
+        color: white;
+      }
+      label {
+        font-size: 0.85rem;
+        background: #4a3d66;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+      }
+      #wave {
+        width: 100%;
+        height: 140px;
+        display: block;
+        margin-top: 1rem;
+        background: #1d1630;
+        border-radius: 8px;
+      }
+      #status {
+        font-size: 0.8rem;
+        opacity: 0.8;
+        margin-top: 0.4rem;
+        white-space: pre-wrap;
+      }
+      body.render header,
+      body.render h2,
+      body.render .row,
+      body.render #status {
+        display: none;
+      }
+      body.render {
+        padding: 0;
+      }
+      body.render #wave {
+        margin: 0;
+        border-radius: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Dev tool: hear every sound and every song stem. Excluded by `npm run build:release`.
+         ?render=song&id=<song> | ?render=stem&id=<song>/<stem> | ?render=sfx&id=<sfx>
+         renders offline and exposes the result for `npm run render-audio`. -->
+    <header>
+      <a href="./">← dev</a>
+      <strong>Sound board</strong>
+    </header>
+    <h2>Song</h2>
+    <div class="row" id="song"></div>
+    <div class="row" id="stems"></div>
+    <h2>Sound effects</h2>
+    <div class="row" id="sfx"></div>
+    <canvas id="wave"></canvas>
+    <div id="status">Tap any button to start audio.</div>
+    <script type="module" src="/src/dev/audioBoard.ts"></script>
+  </body>
+</html>

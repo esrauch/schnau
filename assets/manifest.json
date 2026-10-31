@@ -1,0 +1,11 @@
+{
+  "$comment": "Every file under assets/ and assets-src/ needs an entry here. See TECHNICAL.md \u00a714.",
+  "assets": [
+    {
+      "path": "assets-src/voxels/props/crate.voxt",
+      "source": "Original voxel model (placeholder crate), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    }
+  ]
+}
