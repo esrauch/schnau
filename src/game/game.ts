@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { SONGS } from '../audio/songs';
 import { common, hexToNumber } from '../content/palettes';
 import { View } from '../render/view';
+import { CONTOUR_LAYER } from '../render/outline';
+import { toonMaterial } from '../render/toon';
 import { getGeometry, voxelMaterial } from '../voxel/models';
 import { Conductor } from './conductor';
 
@@ -20,7 +22,7 @@ export class Game {
   private readonly conductor = new Conductor();
   /** The run's seed: every random choice in the simulation will come from it (src/sim/rng.ts). */
   readonly seed: number;
-  private readonly prop: THREE.Mesh;
+  private readonly heroes: THREE.Mesh[] = [];
   private time = 0;
   private accumulator = 0;
   private last = performance.now();
@@ -28,25 +30,47 @@ export class Game {
   constructor(
     canvas: HTMLCanvasElement,
     private readonly ui: HTMLDivElement,
-    options: { seed: number },
+    options: { seed: number; outline: boolean; contour: number | null },
   ) {
     this.seed = options.seed;
-    this.view = new View(canvas, { fov: 45 });
+    this.view = new View(canvas, { fov: 45, outline: options.outline, contour: options.contour });
     const { scene, camera } = this.view;
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color: hexToNumber(common.ground) }),
+      new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2),
+      toonMaterial({ color: hexToNumber(common.ground) }),
     );
     ground.receiveShadow = true;
     scene.add(ground);
 
-    this.prop = new THREE.Mesh(getGeometry('props/crate'), voxelMaterial);
-    this.prop.castShadow = true;
-    scene.add(this.prop);
+    for (const [id, x] of [
+      ['hero/blackSchnauzer', -0.55],
+      ['hero/spitz', 0.55],
+    ] as const) {
+      const hero = new THREE.Mesh(getGeometry(id), voxelMaterial);
+      hero.position.x = x;
+      hero.castShadow = true;
+      hero.receiveShadow = true;
+      hero.layers.enable(CONTOUR_LAYER);
+      scene.add(hero);
+      this.heroes.push(hero);
+    }
+    const placed: [string, number, number, number][] = [
+      ['props/crate', 1.6, -1.8, 0.3],
+      ['props/bush', -1.6, -1.4, 0],
+      ['props/bush', 1.9, 0.6, 2],
+    ];
+    for (const [id, x, z, turn] of placed) {
+      const mesh = new THREE.Mesh(getGeometry(id), voxelMaterial);
+      mesh.position.set(x, 0, z);
+      mesh.rotation.y = turn;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+    }
 
-    camera.position.set(0, 3, 5);
-    camera.lookAt(0, 0.4, 0);
+    camera.position.set(0, 2.6, 4.6);
+    camera.lookAt(0, 0.45, 0);
 
     this.ui.innerHTML = '<p class="hint">Tap to start</p>';
     canvas.addEventListener('pointerdown', () => this.tap());
@@ -69,7 +93,9 @@ export class Game {
       this.step();
       this.accumulator -= DT;
     }
-    this.prop.rotation.y = this.time * 0.6;
+    this.heroes.forEach((hero, i) => {
+      hero.rotation.y = 0.35 + Math.sin(this.time * 0.8 + i * 1.7) * 0.5;
+    });
     this.view.render();
     requestAnimationFrame((t) => this.frame(t));
   }

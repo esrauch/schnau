@@ -1,9 +1,10 @@
 /**
  * Render voxel models to PNGs headlessly, so they can be looked at without
- * running the game (TECHNICAL.md §11, the preview loop).
+ * running the game (TECHNICAL.md §6).
  *
  *   npm run preview-models              every model, plus a contact sheet per folder
  *   npm run preview-models -- props/crate   just these models
+ *   npm run preview-models -- --close hero/x   big front, ¾, side and ¾-back views → previews/<id>-close.png
  *
  * Writes previews/<id>.png (front, ¾ and side) and previews/sheet-<folder>.png.
  * Uses the system Chrome through playwright-core, so no browser download is needed.
@@ -27,7 +28,7 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
 try {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 400 } });
+  const page = await browser.newPage({ viewport: { width: 1200, height: 1200 } });
   page.on('pageerror', (e) => console.error(`page error: ${e.message}`));
 
   // Ask the page which models exist (it reads them through Vite, like the game does).
@@ -35,7 +36,9 @@ try {
   const allIds = await page.evaluate(() =>
     [...document.querySelectorAll('#list button')].map((b) => b.textContent ?? ''),
   );
-  const wanted = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const close = args.includes('--close');
+  const wanted = args.filter((a) => a !== '--close');
   const ids = wanted.length > 0 ? wanted : allIds;
   mkdirSync(OUT, { recursive: true });
 
@@ -47,12 +50,11 @@ try {
   };
 
   for (const id of ids) {
-    await shoot(
-      `render=turntable&model=${encodeURIComponent(id)}`,
-      `${id.replaceAll('/', '-')}.png`,
-    );
+    const name = id.replaceAll('/', '-');
+    if (close) await shoot(`render=closeup&model=${encodeURIComponent(id)}`, `${name}-close.png`);
+    else await shoot(`render=turntable&model=${encodeURIComponent(id)}`, `${name}.png`);
   }
-  if (wanted.length === 0) {
+  if (wanted.length === 0 && !close) {
     const groups = [
       ...new Set(allIds.filter((id) => id.includes('/')).map((id) => id.split('/')[0])),
     ];

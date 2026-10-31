@@ -9,9 +9,9 @@ export type Hex = `#${string}`;
 /** Shared colors used everywhere: the backdrop, the ground, the UI chrome. */
 export const common = {
   /** The world behind everything: the page, the empty scene and the fog all fade to this. */
-  backdrop: '#2a3242',
-  ground: '#6f9c5a',
-  groundDark: '#5a8248',
+  backdrop: '#7cc4f5',
+  ground: '#8fd14f',
+  groundDark: '#6fb83c',
   accent: '#ffb627',
   bone: '#f4efe4',
   ink: '#1f2430',
@@ -38,7 +38,46 @@ export const voxel = {
   woodDark: '#7a4e2d',
   stone: '#8d93a3',
   stoneDark: '#646a79',
+  pink: '#ff7b93',
+  pinkLight: '#ffb3c1',
+  /** Eyes and noses: deeper than any coat, so they read even on the black dog. */
+  eye: '#0e1018',
+  // The black schnauzer: a cool charcoal (true black has no lit side), greying furnishings.
+  coal: '#454c62',
+  coalLight: '#6a7288',
+  bandanaGreen: '#1fa35c',
+  // The spitz: pale cream, warm apricot on the crown and ears, a white muzzle,
+  // brown eyes and nose, a teal collar with a silver bone tag.
+  spitzCream: '#f3dfbd',
+  apricot: '#e2b076',
+  apricotDark: '#c4884e',
+  muzzleWhite: '#fbf4e6',
+  noseBrown: '#3d2826',
+  eyeBrown: '#26160f',
+  collarTeal: '#1d8c8c',
+  silver: '#c9ced8',
+  leaf: '#3fae3c',
+  leafLight: '#7fd34a',
+  bark: '#9a6438',
 } as const satisfies Record<string, Hex>;
+
+/** The sunny-day sky. */
+export const sky = {
+  top: '#3d8fe6',
+  horizon: '#c4ecff',
+  sun: '#fff3d6',
+} as const satisfies Record<string, Hex>;
+
+/**
+ * The two cel tones (render/toon.ts): every surface is its own colour × the
+ * lit tint where the sun reaches it; where it doesn't, its (linear) colour
+ * raised to the shade gamma, which darkens and saturates it, × the shade tint.
+ */
+export const cel = {
+  litTint: '#fffaf0',
+  shadeTint: '#d2d8f4',
+  shadeGamma: 1.45,
+} as const;
 
 export type VoxelColor = keyof typeof voxel;
 export type CommonColor = keyof typeof common;

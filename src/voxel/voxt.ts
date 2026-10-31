@@ -6,10 +6,14 @@
  *   size 5 7 4          width (x), height (y), depth (z)
  *   voxel 0.11          world units per voxel
  *   mirror x            optional: each row gives the left half plus the centre column
+ *   smooth 2            optional: mesh as a rounded surface (with this many smoothing passes, default 2)
  *   colors
  *     g gold        one character → a named color from palettes.ts `voxel` (or #rrggbb)
  *     k ink
  *   box 0 0 0 4 0 3 g   fill x0 y0 z0 → x1 y1 z1 (inclusive) with a color ('.' clears)
+ *   ellipsoid 4 3 2 2.5 3 2 g   fill voxels within radii rx ry rz of centre x y z (decimals ok)
+ *   paint ellipsoid …   (or paint box …) recolour only voxels already filled: markings that
+ *                       follow the surface (eyes, patches, a collar) without adding any bumps
  *   slice 0             a front-view slice at depth z (0 = the front, facing the camera)
  *     ..k..             rows from top to bottom, columns left to right
  *   slice 1-3           a range: the same grid for depths 1, 2 and 3
@@ -29,6 +33,8 @@ export interface VoxelModel {
   readonly colors: readonly Hex[];
   /** One byte per voxel at x + y·width + z·width·height. 0 = empty. */
   readonly data: Uint8Array;
+  /** Smoothing passes for a rounded mesh; 0 meshes it as blocks. */
+  readonly smooth: number;
 }
 
 export class VoxtError extends Error {
@@ -52,6 +58,7 @@ export function parseVoxt(id: string, source: string): VoxelModel {
   let size: [number, number, number] | null = null;
   let scale = 0.1;
   let mirror = false;
+  let smooth = 0;
   const legend = new Map<string, number>(); // char → 1-based color index
   const colors: Hex[] = [];
   let data: Uint8Array | null = null;
@@ -101,7 +108,13 @@ export function parseVoxt(id: string, source: string): VoxelModel {
     if (line.trim() === '') return;
     const indented = /^\s/.test(line);
     const words = line.trim().split(/\s+/);
+    // `paint <shape>` recolours filled voxels only.
+    const paint = words[0] === 'paint' && !indented;
+    if (paint) words.shift();
     const head = words[0] as string;
+    const put = (d: Uint8Array, i: number, v: number): void => {
+      if (!paint || d[i]) d[i] = v;
+    };
 
     if (indented && mode === 'colors') {
       const [ch, name] = words;
@@ -117,6 +130,8 @@ export function parseVoxt(id: string, source: string): VoxelModel {
     }
     flushSlice();
     mode = 'top';
+    if (paint && head !== 'box' && head !== 'ellipsoid')
+      fail(lineNo, 'paint works with box or ellipsoid');
 
     switch (head) {
       case 'size': {
@@ -136,9 +151,45 @@ export function parseVoxt(id: string, source: string): VoxelModel {
         if (words[1] !== 'x') fail(lineNo, 'only "mirror x" is supported');
         mirror = true;
         break;
+      case 'smooth':
+        smooth = words[1] === undefined ? 2 : Number(words[1]);
+        if (!Number.isInteger(smooth) || smooth < 0 || smooth > 8) {
+          fail(lineNo, 'smooth takes a whole number of passes from 0 to 8');
+        }
+        break;
       case 'colors':
         mode = 'colors';
         break;
+      case 'ellipsoid': {
+        const {
+          data: d,
+          size: [w, h, dep],
+        } = need(lineNo);
+        const nums = words.slice(1, 7).map(Number);
+        if (
+          nums.length !== 6 ||
+          nums.some((n) => !Number.isFinite(n)) ||
+          nums.slice(3).some((r) => r <= 0)
+        ) {
+          fail(lineNo, 'ellipsoid needs x y z rx ry rz (radii above 0) and a color');
+        }
+        const [cx, cy, cz, rx, ry, rz] = nums as [number, number, number, number, number, number];
+        const v = valueOf(words[7] ?? fail(lineNo, 'ellipsoid needs a color'), lineNo);
+        const range = (c: number, r: number, n: number): [number, number] => [
+          Math.max(0, Math.ceil(c - r)),
+          Math.min(n - 1, Math.floor(c + r)),
+        ];
+        const [x0, x1] = range(cx, rx, w);
+        const [y0, y1] = range(cy, ry, h);
+        const [z0, z1] = range(cz, rz, dep);
+        for (let z = z0; z <= z1; z++)
+          for (let y = y0; y <= y1; y++)
+            for (let x = x0; x <= x1; x++) {
+              const r = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2;
+              if (r <= 1) put(d, voxelIndex({ width: w, height: h }, x, y, z), v);
+            }
+        break;
+      }
       case 'box': {
         const {
           data: d,
@@ -165,7 +216,7 @@ export function parseVoxt(id: string, source: string): VoxelModel {
         const v = valueOf(words[7] ?? fail(lineNo, 'box needs a color'), lineNo);
         for (let z = z0; z <= z1; z++)
           for (let y = y0; y <= y1; y++)
-            for (let x = x0; x <= x1; x++) d[voxelIndex({ width: w, height: h }, x, y, z)] = v;
+            for (let x = x0; x <= x1; x++) put(d, voxelIndex({ width: w, height: h }, x, y, z), v);
         break;
       }
       case 'slice': {
@@ -191,5 +242,5 @@ export function parseVoxt(id: string, source: string): VoxelModel {
     data: d,
     size: [width, height, depth],
   } = need(lines.length);
-  return { id, width, height, depth, scale, colors, data: d };
+  return { id, width, height, depth, scale, colors, data: d, smooth };
 }

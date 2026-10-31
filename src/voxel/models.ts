@@ -3,7 +3,9 @@
  * hot-reload), parsed once and meshed once into cached three.js geometry.
  */
 import * as THREE from 'three';
+import { toonMaterial } from '../render/toon';
 import { greedyMesh } from './mesh';
+import { surfaceNets } from './smooth';
 import { parseVoxt, type VoxelModel } from './voxt';
 
 const sources = import.meta.glob('/assets-src/voxels/**/*.voxt', {
@@ -47,7 +49,7 @@ export function getGeometry(id: string): THREE.BufferGeometry {
 }
 
 export function buildGeometry(model: VoxelModel): THREE.BufferGeometry {
-  const mesh = greedyMesh(model);
+  const mesh = model.smooth > 0 ? surfaceNets(model, model.smooth) : greedyMesh(model);
   // THREE.Color converts the sRGB palette into the linear working space.
   const palette = model.colors.map((hex) => new THREE.Color(hex));
   const colors = new Float32Array(mesh.colorIndex.length * 3);
@@ -65,8 +67,8 @@ export function buildGeometry(model: VoxelModel): THREE.BufferGeometry {
   return geometry;
 }
 
-/** One material for every voxel model: flat-shaded vertex colors, no textures. */
-export const voxelMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+/** One material for every voxel model: cel-shaded vertex colors, no textures. */
+export const voxelMaterial = toonMaterial({ vertexColors: true });
 
 /** The model's height in world units (for placing things on top of it). */
 export function modelHeight(id: string): number {

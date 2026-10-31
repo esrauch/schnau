@@ -32,10 +32,16 @@ How we build it: the stack, the architecture, and how assets get made. The tech 
 
 ## 4. Rendering and UI
 
-- `src/render/view.ts` (`View`): renderer (pixel ratio capped at 2), scene, hemisphere fill and a shadow-casting sun; the game places the camera.
-- Voxel meshes are greedy-meshed and cached per model (`getGeometry`); use `InstancedMesh` for many copies of a static prop. Keep draw calls under ~100 and don't allocate in the frame loop.
+**The look is sunny cel shading, after Wind Waker:** bright saturated colour, two flat tones per surface with a hard edge between them, cool coloured shade, crisp shadows, rounded forms.
+
+- **Cel tones** (`src/render/toon.ts`, `toonMaterial`): built on `MeshToonMaterial`, but its light only decides *whether* a pixel is lit (a hard ramp, terminator just past side-on, and shadows). The tones come from `cel` in `palettes.ts`: lit = the surface colour × `litTint`; shade = the colour × `shadeTint`, re-saturated. Multiplying by blue sky light turned warm colours to mud, so the shade is art-directed rather than physical. Shadow edges are snapped too (the shadow map filters them soft), keeping a pixel of antialiasing. Every lit surface uses `toonMaterial`; the view calls `syncCelSun` after changing the sun.
+- **Line art** (`src/render/outline.ts`): a post pass that finds silhouettes (the Laplacian of 1/depth, so flat ground stays clean) and creases (normals), and draws each line in a darker, richer shade of the nearer surface's colour, never black. Costs a second scene render (normals) and a full-screen pass. `?outline=0` turns it off.
+- **The hero's contour** (same pass): a thick line around only the outside of objects on `CONTOUR_LAYER`, from a third pass that draws them alone into a mask. It shows through anything in front of them. `?contour=white|black|off` (white by default, for now).
+- **Rounded models:** `.voxt` models marked `smooth` are meshed as rounded surfaces (§6), so the terminator sweeps across curves. Hard-edged things (crates) stay blocky.
+- `src/render/view.ts` (`View`): renderer (pixel ratio capped at 2), the sky gradient and horizon fog, and the sun (high, from the left, so things show a lit side and a shade side; PCF shadows). The game places the camera.
+- Voxel meshes are cached per model (`getGeometry`); use `InstancedMesh` for many copies of a static prop. Keep draw calls under ~100 (the outline pass doubles them) and don't allocate in the frame loop.
 - The DOM overlay (`#ui`) lets taps through (`pointer-events: none`); real controls opt back in with `.interactive`. Style tokens are at the top of `src/ui/base.css`.
-- **Colors** have one source of truth, `src/content/palettes.ts`: `common` becomes CSS custom properties (`ui/paletteVars.ts`), `voxel` is the named colors models use. The current palette is a neutral placeholder.
+- **Colors** have one source of truth, `src/content/palettes.ts`: `common` becomes CSS custom properties (`ui/paletteVars.ts`), `voxel` is the named colors models use, `sky` and `cel` set the light.
 - No font is bundled yet (system-ui). If one is added, self-host it under `assets/fonts` and wait for it in `main.ts` before building the game.
 
 ## 5. Audio
@@ -61,11 +67,17 @@ slice 0             # front-view grid at depth z; rows top to bottom
   ..w..
 ```
 
+- **`ellipsoid x y z rx ry rz c`** fills a rounded blob (centre and radii in voxels, decimals allowed): the main tool for soft cartoon shapes.
+- **`paint ellipsoid …` / `paint box …`** recolours only voxels already filled: markings that follow the curved surface (eyes, glints, collars, patches) without adding bumps. Order matters: a later paint or shape covers an earlier one.
+- **`smooth [passes]`** meshes the model as a rounded surface (surface nets, `src/voxel/smooth.ts`). The voxels are blurred into a density field; vertices sit where it crosses ½, relaxed by the passes (default 2) within their cells, and **normals come from the field's gradient**, so the cel terminator sweeps cleanly with no voxel staircase. Each quad keeps its own voxel's colour, so colour patches stay crisp (their edges follow the voxel grid, so keep patches simple).
+- **Watch for overhangs** (a tail plume over a back, a brim): sunlight slipping under one leaves a lit island inside its shadow. Fill underneath so the shape meets the body. Without it, models are greedy-meshed blocks (`src/voxel/mesh.ts`).
 - Models live in `assets-src/voxels/<folder>/<name>.voxt`; the **model id is the path** (`props/crate`). Vite loads them as text, so edits hot-reload.
 - Slice 0 is the front and faces +z. `mirror x` makes each row the left half plus the centre column.
 - `npm run import-vox -- model.vox folder/name [voxelSize]` converts MagicaVoxel files, snapping colors to the palette.
 
-**Making a model:** write the `.voxt` → register it in `assets/manifest.json` (`author: "Claude"`, `license: "original"`) → `npm run preview-models -- <id>` and look at `previews/<id>.png` and the folder's contact sheet → use it with `getGeometry(id)` and `voxelMaterial`. Judge models from the game camera at phone size: a thing should read from its silhouette alone.
+**Making a model:** write the `.voxt` → register it in `assets/manifest.json` (`author: "Claude"`, `license: "original"`) → `npm run preview-models -- <id>` and look at `previews/<id>.png` and the folder's contact sheet; for detail work, `npm run preview-models -- --close <id>` renders big front, ¾, side and ¾-back views (`previews/<id>-close.png`) → use it with `getGeometry(id)` and `voxelMaterial`.
+
+**The heroes** (`hero/blackSchnauzer`, `hero/spitz`) are 0.03-unit voxels, about 0.85 tall, with cartoon proportions (big heads, stubby legs). The spitz is modelled on a real dog from a photo: pale cream, apricot crown and rounded upright ears, white muzzle, teal collar with a silver bone tag. Black fur is a cool charcoal (`coal`), since true black has no lit side. Judge models from the game camera at phone size: a thing should read from its silhouette alone.
 
 ## 7. Licensing
 
@@ -110,7 +122,7 @@ A static site. `.github/workflows/deploy.yml` runs `npm run check` and deploys `
 |---|---|
 | `npm run check` | Lint, Prettier check, typecheck, tests, asset-license check. Run before every commit. |
 | `npm run build` / `build:release` | Build with / without the dev pages. |
-| `npm run preview-models [ids…]` | PNG turntables → `previews/<id>.png`, plus a contact sheet per folder. |
+| `npm run preview-models [--close] [ids…]` | PNG turntables → `previews/<id>.png`, plus a contact sheet per folder; `--close` for big detail views. |
 | `npm run screenshot [seed] [query] [name]` | Phone-size (375×812 @2x) capture → `previews/<name>.png`. |
 | `npm run render-audio [song:id \| stem:song/stem \| sfx:id …]` | WAVs and waveform PNGs in `previews/audio/`, with levels and a loop-seam check. |
 | `npm run import-vox -- file.vox folder/name [voxelSize]` | Convert a MagicaVoxel model to `.voxt`. |

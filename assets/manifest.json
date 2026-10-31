@@ -6,6 +6,24 @@
       "source": "Original voxel model (placeholder crate), written by Claude",
       "author": "Claude",
       "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/props/bush.voxt",
+      "source": "Original voxel model (a round garden bush), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/hero/blackSchnauzer.voxt",
+      "source": "Original voxel model (hero: black schnauzer), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/hero/spitz.voxt",
+      "source": "Original voxel model (hero: beige spitz), written by Claude",
+      "author": "Claude",
+      "license": "original"
     }
   ]
 }

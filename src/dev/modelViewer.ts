@@ -4,7 +4,8 @@
  * script, so Claude can look at a model and iterate (TECHNICAL.md §11).
  */
 import * as THREE from 'three';
-import { common, hexToNumber } from '../content/palettes';
+import { common, hexToNumber, sky } from '../content/palettes';
+import { syncCelSun, toonMaterial } from '../render/toon';
 import { greedyMesh } from '../voxel/mesh';
 import { MODEL_IDS, getGeometry, getModel, voxelMaterial } from '../voxel/models';
 
@@ -25,11 +26,12 @@ renderer.shadowMap.enabled = true;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(hexToNumber(common.backdrop));
-scene.add(new THREE.HemisphereLight(0xffffff, hexToNumber(common.groundDark), 1.3));
-const sun = new THREE.DirectionalLight(0xffffff, 1.8);
-sun.position.set(-4, 8, 6);
+// The game's lights (render/view.ts), so models look here as they will in play.
+const sun = new THREE.DirectionalLight(hexToNumber(sky.sun), 3);
+sun.position.set(-10, 13, 3);
 sun.castShadow = true;
 scene.add(sun);
+syncCelSun(sun);
 
 const camera = new THREE.PerspectiveCamera(24, 1, 0.05, 100);
 
@@ -37,7 +39,7 @@ const camera = new THREE.PerspectiveCamera(24, 1, 0.05, 100);
 function tile(x: number): THREE.Mesh {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(1, 0.1, 1),
-    new THREE.MeshLambertMaterial({ color: hexToNumber(common.ground) }),
+    toonMaterial({ color: hexToNumber(common.ground) }),
   );
   mesh.position.set(x, -0.05, 0);
   mesh.receiveShadow = true;
@@ -62,6 +64,7 @@ function aim(target: THREE.Vector3, yawDeg: number, pitchDeg: number, dist: numb
 }
 
 if (renderMode === 'turntable') renderTurntable(params.get('model') ?? MODEL_IDS[0] ?? '');
+else if (renderMode === 'closeup') renderCloseup(params.get('model') ?? MODEL_IDS[0] ?? '');
 else if (renderMode === 'sheet') renderSheet(params.get('group') ?? '');
 else interactive();
 
@@ -84,6 +87,36 @@ function renderTurntable(id: string): void {
     renderer.setViewport((i * w) / 3, 0, w / 3, h);
     renderer.setScissor((i * w) / 3, 0, w / 3, h);
     aim(target, yaw, yaw === 0 ? 8 : 25, dist);
+    renderer.render(scene, camera);
+  });
+  markReady();
+}
+
+/** Four big, tightly framed views (front, ¾ front, side, ¾ back) for detail work. */
+function renderCloseup(id: string): void {
+  document.body.classList.add('render');
+  const cell = 600;
+  renderer.setSize(cell * 2, cell * 2);
+  const mesh = modelMesh(id);
+  scene.add(mesh, tile(0));
+  const size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+  const target = new THREE.Vector3(0, size.y / 2, 0);
+  const dist = Math.max(size.x, size.y, size.z, 0.5) * 2.7;
+  camera.aspect = 1;
+  camera.updateProjectionMatrix();
+  renderer.setScissorTest(true);
+  const views: [number, number][] = [
+    [0, 8],
+    [35, 20],
+    [90, 10],
+    [150, 25],
+  ];
+  views.forEach(([yaw, pitch], i) => {
+    const x = (i % 2) * cell;
+    const y = (1 - Math.floor(i / 2)) * cell;
+    renderer.setViewport(x, y, cell, cell);
+    renderer.setScissor(x, y, cell, cell);
+    aim(target, yaw, pitch, dist);
     renderer.render(scene, camera);
   });
   markReady();

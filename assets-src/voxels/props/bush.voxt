@@ -1,0 +1,15 @@
+# A round garden bush, to show off the cel shading on curves.
+size 17 13 17
+voxel 0.06
+smooth 2
+colors
+  l leaf
+  h leafLight
+ellipsoid 8 5 8 7.5 5 7.5 l
+ellipsoid 5 8 6 4 3.5 4 l
+ellipsoid 11 7.5 10 4 3.5 4 l
+ellipsoid 9 9 5 3.5 3 3.5 l
+# Sunlit tufts on top.
+ellipsoid 5 10.5 6 2.5 1.2 2.5 h
+ellipsoid 11 10 10 2.5 1.2 2.5 h
+ellipsoid 9 11.2 5 2 1 2 h

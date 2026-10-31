@@ -1,0 +1,72 @@
+# Hero: a black miniature schnauzer. Cartoon proportions (a big, long boxy
+# head, stubby legs), a greying beard, moustache and bushy brows, ears folded
+# forward, a docked tail standing up, and a green bandana.
+# Faces +z (z = 0 is the nose). x runs left to right as you face the dog;
+# its centre is x = 10.
+size 21 28 32
+voxel 0.03
+smooth 3
+colors
+  c coal
+  g coalLight
+  e eye
+  w white
+  b bandanaGreen
+
+# Legs (stubby columns), hind thighs and paws.
+ellipsoid 6.5 4 13 2.4 4.5 2.4 c
+ellipsoid 13.5 4 13 2.4 4.5 2.4 c
+ellipsoid 6.5 4 25 2.4 4.5 2.4 c
+ellipsoid 13.5 4 25 2.4 4.5 2.4 c
+ellipsoid 6.6 9 24.5 2.6 3.6 3.6 c
+ellipsoid 13.4 9 24.5 2.6 3.6 3.6 c
+ellipsoid 6.5 1.2 12 2.7 1.6 3 c
+ellipsoid 13.5 1.2 12 2.7 1.6 3 c
+ellipsoid 6.5 1.2 24.5 2.7 1.6 3 c
+ellipsoid 13.5 1.2 24.5 2.7 1.6 3 c
+
+# Body: a compact barrel, a deep chest in front.
+ellipsoid 10 11.5 20 6 5 9 c
+ellipsoid 10 11 13 5.6 5.2 4.6 c
+
+# The docked tail, standing up.
+ellipsoid 10 17 28 1.7 3.2 1.7 c
+
+# The green bandana: a band round the neck, and a flap over the chest that
+# peeks out below the beard.
+paint ellipsoid 10 15.2 11 7.5 2.4 1.6 b
+ellipsoid 10 14 8.6 4.6 1.5 1.6 b
+ellipsoid 10 12.4 8.5 3.4 1.3 1.5 b
+ellipsoid 10 10.8 8.5 2.2 1.2 1.4 b
+ellipsoid 10 9.4 8.6 1.1 1 1.2 b
+
+# Head: a long, flat-topped skull and a long muzzle.
+ellipsoid 10 20 9.5 5.4 4.2 5.4 c
+ellipsoid 10 18 4 3.7 2.7 4.4 c
+
+# Ears folded forward: a base on top of the skull, the flap dropping toward the eye.
+ellipsoid 5.6 23.2 9.4 1.9 1.5 2.1 c
+ellipsoid 14.4 23.2 9.4 1.9 1.5 2.1 c
+ellipsoid 4.9 21.6 7.6 1.6 2.1 1.4 c
+ellipsoid 15.1 21.6 7.6 1.6 2.1 1.4 c
+
+# Moustache: the whole muzzle furnished, a lighter grey than the coat.
+paint ellipsoid 10 18 2.6 4.2 3.2 3.4 g
+ellipsoid 7.4 17.2 2.8 1.6 1.7 1.9 g
+ellipsoid 12.6 17.2 2.8 1.6 1.7 1.9 g
+
+# The beard: squared off, tapering as it hangs from the muzzle.
+ellipsoid 10 15.2 3.4 3.3 2.8 2.8 g
+ellipsoid 10 12.6 4.2 2.5 1.9 2.2 g
+
+# Nose.
+ellipsoid 10 19.4 0.5 1.3 1 1.1 e
+
+# Eyes (with a glint) under big bushy brows.
+paint ellipsoid 7.3 20.8 4 1.5 1.8 3 e
+paint ellipsoid 12.7 20.8 4 1.5 1.8 3 e
+# Glints sit up and to the left in both eyes (one light), deep enough to reach the surface.
+paint ellipsoid 6.8 21.5 5 0.8 0.8 4 w
+paint ellipsoid 12.2 21.5 5 0.8 0.8 4 w
+ellipsoid 7 23 5.8 2.5 1.2 1.8 g
+ellipsoid 13 23 5.8 2.5 1.2 1.8 g

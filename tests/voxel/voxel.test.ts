@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { voxel } from '../../src/content/palettes';
-import { greedyMesh } from '../../src/voxel/mesh';
+import { greedyMesh, type MeshData } from '../../src/voxel/mesh';
+import { surfaceNets } from '../../src/voxel/smooth';
 import { nearestPaletteColor, parseVox, voxToVoxt } from '../../src/voxel/vox';
 import { parseVoxt, voxelIndex, type VoxelModel } from '../../src/voxel/voxt';
 
@@ -76,6 +77,67 @@ box 1 1 1 1 1 1 .
   });
 });
 
+describe('parseVoxt shapes and options', () => {
+  it('fills ellipsoids and reads smooth', () => {
+    const m = parseVoxt(
+      'test',
+      `size 5 5 5
+smooth
+colors
+  g gold
+ellipsoid 2 2 2 2 1 2 g`,
+    );
+    expect(m.smooth).toBe(2);
+    expect(at(m, 2, 2, 2)).toBe(1);
+    expect(at(m, 0, 2, 2)).toBe(1); // on the x radius
+    expect(at(m, 2, 0, 2)).toBe(0); // past the y radius
+    expect(at(m, 1, 1, 1)).toBe(0);
+    expect(parseVoxt('test', 'size 1 1 1').smooth).toBe(0);
+  });
+
+  it('paints only voxels that are already filled', () => {
+    const m = parseVoxt(
+      'test',
+      `size 3 1 1
+colors
+  g gold
+  r red
+box 0 0 0 1 0 0 g
+paint box 0 0 0 2 0 0 r`,
+    );
+    expect([at(m, 0, 0, 0), at(m, 1, 0, 0), at(m, 2, 0, 0)]).toEqual([2, 2, 0]);
+    expect(() => parseVoxt('test', 'size 1 1 1\npaint slice 0')).toThrow(/paint works/);
+  });
+
+  it('rejects a bad ellipsoid', () => {
+    expect(() =>
+      parseVoxt('test', 'size 3 3 3\ncolors\n  g gold\nellipsoid 1 1 1 0 1 1 g'),
+    ).toThrow(/radii/);
+  });
+});
+
+/** Every triangle's winding agrees with its vertices' normals (so it faces outward). */
+function windingMatchesNormals(mesh: MeshData): boolean {
+  const p = mesh.positions;
+  const n = mesh.normals;
+  for (let t = 0; t < mesh.indices.length; t += 3) {
+    const [i, j, k] = [mesh.indices[t]!, mesh.indices[t + 1]!, mesh.indices[t + 2]!];
+    const e1 = [0, 1, 2].map((a) => p[j * 3 + a]! - p[i * 3 + a]!);
+    const e2 = [0, 1, 2].map((a) => p[k * 3 + a]! - p[i * 3 + a]!);
+    const face = [
+      e1[1]! * e2[2]! - e1[2]! * e2[1]!,
+      e1[2]! * e2[0]! - e1[0]! * e2[2]!,
+      e1[0]! * e2[1]! - e1[1]! * e2[0]!,
+    ];
+    const dot = [i, j, k].reduce(
+      (sum, v) => sum + face.reduce((s2, f, a) => s2 + f * n[v * 3 + a]!, 0),
+      0,
+    );
+    if (dot <= 0) return false;
+  }
+  return true;
+}
+
 describe('greedyMesh', () => {
   const solid = (
     w: number,
@@ -91,6 +153,7 @@ describe('greedyMesh', () => {
       scale: 1,
       colors: ['#ff0000', '#00ff00'],
       data: new Uint8Array(w * h * d),
+      smooth: 0,
     };
     for (let z = 0; z < d; z++)
       for (let y = 0; y < h; y++)
@@ -202,5 +265,51 @@ describe('MagicaVoxel import', () => {
 
   it('rejects files that are not .vox', () => {
     expect(() => parseVox(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))).toThrow(/VOX/);
+  });
+});
+
+describe('surfaceNets', () => {
+  const ball = (r: number): VoxelModel => {
+    const size = r * 2 + 1;
+    const m = parseVoxt(
+      'ball',
+      `size ${size} ${size} ${size}\ncolors\n  g gold\nellipsoid ${r} ${r} ${r} ${r} ${r} ${r} g`,
+    );
+    return { ...m, smooth: 2 };
+  };
+
+  it('makes one quad per exposed voxel face, facing outward', () => {
+    const m = parseVoxt('one', 'size 1 1 1\ncolors\n  g gold\nbox 0 0 0 0 0 0 g');
+    const mesh = surfaceNets(m, 0);
+    expect(mesh.quads).toBe(6);
+    expect(windingMatchesNormals(mesh)).toBe(true);
+    expect(windingMatchesNormals(greedyMesh(m))).toBe(true);
+  });
+
+  it('rounds a ball, with outward normals and no NaNs', () => {
+    const m = ball(4);
+    const mesh = surfaceNets(m, 2);
+    expect(windingMatchesNormals(mesh)).toBe(true);
+    expect([...mesh.positions, ...mesh.normals].every(Number.isFinite)).toBe(true);
+    // Every vertex is roughly the ball's radius (4.5 voxels to the outside) from its centre.
+    const centre = [0, 4.5, 0];
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      const d = Math.hypot(...[0, 1, 2].map((a) => mesh.positions[i + a]! - centre[a]!));
+      expect(d).toBeGreaterThan(3.3);
+      expect(d).toBeLessThan(4.9);
+    }
+  });
+
+  it("keeps each quad's own voxel colour", () => {
+    const m = parseVoxt(
+      'two',
+      'size 2 1 1\ncolors\n  r red\n  g gold\nbox 0 0 0 0 0 0 r\nbox 1 0 0 1 0 0 g',
+    );
+    const mesh = surfaceNets(m, 1);
+    expect(new Set(mesh.colorIndex)).toEqual(new Set([0, 1]));
+    for (let q = 0; q < mesh.quads; q++) {
+      const c = mesh.colorIndex.slice(q * 4, q * 4 + 4);
+      expect(new Set(c).size).toBe(1);
+    }
   });
 });
