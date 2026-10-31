@@ -7,6 +7,8 @@
     <style>
       body {
         margin: 0;
+        /* The canvas fills the rest of the window exactly; no scrollbars. */
+        overflow: hidden;
         font-family: system-ui, sans-serif;
         background: #2b2140;
         color: #f7f1e3;
@@ -35,8 +37,27 @@
         background: #4a3d66;
         color: white;
       }
-      #list button.on {
+      #list button.on,
+      #anims button.on {
         background: #a259ff;
+      }
+      #anims {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        padding: 0 0.75rem 0.5rem;
+      }
+      #anims[hidden] {
+        display: none;
+      }
+      #anims button {
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.7rem;
+        border: 0;
+        border-radius: 6px;
+        background: #2f6a54;
+        color: white;
       }
       #info {
         padding: 0 0.75rem;
@@ -48,13 +69,15 @@
       }
       body.render header,
       body.render #list,
+      body.render #anims,
       body.render #info {
         display: none;
       }
     </style>
   </head>
   <body>
-    <!-- Dev tool: look at voxel models. Excluded by `npm run build:release`.
+    <!-- Dev tool: look at voxel models, and play a rigged dog's animations
+         (?model=<id>&anim=walk|trot). Excluded by `npm run build:release`.
          ?render=turntable&model=<id>  front, ¾ and side views (used by `npm run preview-models`)
          ?render=sheet&group=<folder>  every model in a folder side by side, to compare scale -->
     <header>
@@ -62,6 +85,7 @@
       <strong>Models</strong>
     </header>
     <div id="list"></div>
+    <div id="anims" hidden></div>
     <div id="info"></div>
     <canvas id="view"></canvas>
     <script type="module" src="/src/dev/modelViewer.ts"></script>

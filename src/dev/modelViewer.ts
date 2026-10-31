@@ -1,16 +1,25 @@
 /**
- * Dev page for voxel models. Interactive: pick a model and it spins on
- * a field tile. Render modes produce fixed images for the headless preview
- * script, so Claude can look at a model and iterate (TECHNICAL.md §11).
+ * Dev page for voxel models. Interactive: pick a model and it spins on a
+ * field tile, drawn as in the game (cel shading, line art, the heroes'
+ * contour). A rigged dog gets an animation bar: idle, walk, trot and bark,
+ * slow motion, and spin on or off (drag to turn it by hand).
+ * Render modes produce fixed images for the headless preview script, so
+ * Claude can look at a model and iterate (TECHNICAL.md §6).
  */
 import * as THREE from 'three';
 import { common, hexToNumber, sky } from '../content/palettes';
 import { syncCelSun, toonMaterial } from '../render/toon';
 import { greedyMesh } from '../voxel/mesh';
-import { DOG_STYLES, DogAnimator } from '../render/dogAnimator';
+import { surfaceNets } from '../voxel/smooth';
+import { DOG_STYLES, DOG_STYLE_FOR_MODEL, DogAnimator } from '../render/dogAnimator';
+import { CONTOUR_LAYER, Outline } from '../render/outline';
 import { MODEL_IDS, buildRig, getGeometry, getModel, voxelMaterial } from '../voxel/models';
 
 const params = new URLSearchParams(location.search);
+
+type Gait = 'idle' | 'walk' | 'trot';
+/** The interactive page's gaits, as an animator speed. */
+const GAIT_SPEED: Record<Gait, number> = { idle: 0, walk: 0.5, trot: 1 };
 const renderMode = params.get('render'); // 'turntable' | 'sheet' | null
 const $ = <T extends HTMLElement>(sel: string): T => {
   const el = document.querySelector<T>(sel);
@@ -20,6 +29,7 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 const canvas = $<HTMLCanvasElement>('#view');
 const list = $<HTMLDivElement>('#list');
 const info = $<HTMLDivElement>('#info');
+const anims = $<HTMLDivElement>('#anims');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(renderMode ? 1 : Math.min(window.devicePixelRatio, 2));
@@ -137,7 +147,7 @@ function renderPoses(id: string, anim: string): void {
   const rig = buildRig(id);
   for (const mesh of rig.meshes) mesh.castShadow = true;
   scene.add(rig.root, tile(0));
-  const style = id.includes('spitz') ? DOG_STYLES.spitz : DOG_STYLES.schnauzer;
+  const style = DOG_STYLE_FOR_MODEL[id] ?? DOG_STYLES.schnauzer;
   const animator = new DogAnimator(rig, style);
   const size = new THREE.Box3().setFromObject(rig.root).getSize(new THREE.Vector3());
   const target = new THREE.Vector3(0, size.y / 2, 0);
@@ -190,25 +200,127 @@ function renderSheet(group: string): void {
 }
 
 function interactive(): void {
+  const outline = new Outline({ contour: 0xffffff });
   let current: THREE.Object3D | null = null;
+  let animator: DogAnimator | null = null;
   /** The shown model's size: the camera frames it, whatever its size and the screen's shape. */
   let size = new THREE.Vector3(1, 1, 1);
+  let gait: Gait =
+    params.get('anim') === 'walk' || params.get('anim') === 'trot'
+      ? (params.get('anim') as Gait)
+      : 'idle';
+  let slow = false;
+  let spin = true;
+  let yaw = 35;
+  let modelId = '';
+
+  const syncUrl = (): void => {
+    const q = new URLSearchParams({ model: modelId });
+    if (animator && gait !== 'idle') q.set('anim', gait);
+    history.replaceState(null, '', `?${q}`);
+  };
+
+  // The animation bar, shown for rigged dogs only.
+  const buttons = new Map<string, HTMLButtonElement>();
+  const addButton = (key: string, label: string, onClick: () => void): void => {
+    const button = document.createElement('button');
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    anims.append(button);
+    buttons.set(key, button);
+  };
+  const refreshBar = (): void => {
+    for (const g of ['idle', 'walk', 'trot'] as const)
+      buttons.get(g)?.classList.toggle('on', gait === g);
+    buttons.get('slow')?.classList.toggle('on', slow);
+    buttons.get('spin')?.classList.toggle('on', spin);
+  };
+  const setGait = (g: Gait): void => {
+    gait = g;
+    refreshBar();
+    syncUrl();
+  };
+  const bark = (): void => animator?.bark();
+  addButton('idle', '1 Idle', () => setGait('idle'));
+  addButton('walk', '2 Walk', () => setGait('walk'));
+  addButton('trot', '3 Trot', () => setGait('trot'));
+  addButton('bark', 'Space: Bark!', bark);
+  addButton('slow', 'Slow-mo', () => {
+    slow = !slow;
+    refreshBar();
+  });
+  addButton('spin', 'Spin', () => {
+    spin = !spin;
+    refreshBar();
+  });
+  refreshBar();
+  window.addEventListener('keydown', (e) => {
+    if (!animator) return;
+    if (e.key === '1') setGait('idle');
+    else if (e.key === '2') setGait('walk');
+    else if (e.key === '3') setGait('trot');
+    else if (e.key === ' ') {
+      e.preventDefault();
+      bark();
+    }
+  });
+
+  // Drag to turn the model (and stop the spin).
+  let dragX: number | null = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    dragX = e.clientX;
+    spin = false;
+    refreshBar();
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (dragX === null) return;
+    yaw -= (e.clientX - dragX) * 0.5;
+    dragX = e.clientX;
+  });
+  canvas.addEventListener('pointerup', () => (dragX = null));
+  canvas.style.touchAction = 'none';
+
   const show = (id: string): void => {
     if (current) scene.remove(current);
+    modelId = id;
     const group = new THREE.Group();
-    const mesh = modelMesh(id);
-    group.add(mesh, tile(0));
+    const m = getModel(id);
+    const style = DOG_STYLE_FOR_MODEL[id];
+    let meshes: THREE.Mesh[];
+    if (style) {
+      const rig = buildRig(id);
+      group.add(rig.root);
+      meshes = [...rig.meshes];
+      animator = new DogAnimator(rig, style);
+      animator.speed = GAIT_SPEED[gait];
+    } else {
+      const mesh = modelMesh(id);
+      group.add(mesh);
+      meshes = [mesh];
+      animator = null;
+    }
+    for (const mesh of meshes) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      if (style) mesh.layers.enable(CONTOUR_LAYER);
+    }
+    group.updateMatrixWorld(true); // so the rig's parts are measured where they stand
+    const model = new THREE.Box3();
+    for (const mesh of meshes) model.expandByObject(mesh);
+    size = model.getSize(new THREE.Vector3());
+    group.add(tile(0));
     scene.add(group);
     current = group;
-    size = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
-    const m = getModel(id);
-    const quads = greedyMesh(m);
+    anims.hidden = !animator;
+    const quads = (m.smooth > 0 ? surfaceNets(m, m.smooth) : greedyMesh(m)).quads;
     info.textContent =
       `${id}: ${m.width}×${m.height}×${m.depth} voxels at ${m.scale} → ` +
       `${(m.width * m.scale).toFixed(2)} × ${(m.height * m.scale).toFixed(2)} × ` +
-      `${(m.depth * m.scale).toFixed(2)} units · ${quads.quads} quads`;
+      `${(m.depth * m.scale).toFixed(2)} units · ${quads} quads` +
+      (m.parts.length > 1 ? ` · parts: ${m.parts.map((p) => p.name).join(', ')}` : '');
     [...list.children].forEach((b) => b.classList.toggle('on', b.textContent === id));
-    history.replaceState(null, '', `?model=${encodeURIComponent(id)}`);
+    syncUrl();
   };
   for (const id of MODEL_IDS) {
     const button = document.createElement('button');
@@ -220,6 +332,8 @@ function interactive(): void {
     const w = window.innerWidth;
     const h = Math.max(240, window.innerHeight - canvas.getBoundingClientRect().top);
     renderer.setSize(w, h);
+    const ratio = renderer.getPixelRatio();
+    outline.setSize(Math.floor(w * ratio), Math.floor(h * ratio), ratio);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
@@ -227,12 +341,22 @@ function interactive(): void {
   resize();
   const first = params.get('model') ?? MODEL_IDS[0];
   if (first) show(first);
+
+  let last = performance.now();
   renderer.setAnimationLoop((now) => {
+    const dt = Math.min(0.1, (now - last) / 1000) * (slow ? 0.25 : 1);
+    last = now;
+    if (spin) yaw = (yaw + dt * 25) % 360;
+    if (animator) {
+      // Ease between gaits, as a dog speeding up or slowing down would.
+      animator.speed += (GAIT_SPEED[gait] - animator.speed) * Math.min(1, dt * 4);
+      animator.update(dt);
+    }
     // Far enough back to fit the model's height, and its width on a narrow screen (and a tile).
     const across = Math.max(size.x, size.z, 1);
     const dist = Math.max(size.y, across / camera.aspect, 1) * 3.6;
-    aim(new THREE.Vector3(0, size.y / 2, 0), (now / 40) % 360, 22, dist);
-    renderer.render(scene, camera);
+    aim(new THREE.Vector3(0, size.y / 2, 0), yaw, 22, dist);
+    outline.render(renderer, scene, camera);
   });
 }
 

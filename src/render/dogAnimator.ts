@@ -55,6 +55,12 @@ export const DOG_STYLES = {
   },
 } as const satisfies Record<string, DogStyle>;
 
+/** Each rigged dog model's style. */
+export const DOG_STYLE_FOR_MODEL: Readonly<Record<string, DogStyle>> = {
+  'hero/blackSchnauzer': DOG_STYLES.schnauzer,
+  'hero/spitz': DOG_STYLES.spitz,
+};
+
 /** How long a bark takes, in seconds: wind-up, toss, settle. */
 const BARK = { windUp: 0.08, toss: 0.12, settle: 0.3 };
 const BARK_LENGTH = BARK.windUp + BARK.toss + BARK.settle;

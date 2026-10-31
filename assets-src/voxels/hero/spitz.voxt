@@ -21,8 +21,9 @@ colors
   s silver
 
 part body pivot 11 11 18
-# A fluffy round barrel.
+# A fluffy round barrel, and a full rump for the tail to spring from.
 ellipsoid 11 11 18 6.6 5.6 8 c
+ellipsoid 11 12.6 23.6 5.4 4.4 3.8 c
 # The ruff: a thick mane round the neck, white down the front of the chest.
 ellipsoid 11 14 11 8.2 7 5.6 c
 ellipsoid 11 10 9.6 5.4 4.4 3.6 c
@@ -49,9 +50,11 @@ ellipsoid 14.5 1.2 22.5 2.6 1.6 2.8 c
 
 # The tail: a big plume rising off the rump well above the back line, curling
 # forward over it, its tip falling to one side (the dog's left), so it reads
-# in silhouette from any side. It grows out of the coat and whitens along the plume.
-part tail pivot 11 15 25.5 parent body
-ellipsoid 11 16.5 26.6 2.8 3.2 2.6 c
+# in silhouette from any side. It grows out of the coat and whitens along the
+# plume. Its root is buried deep in the rump, so wagging never opens a gap.
+part tail pivot 11 14.5 24.5 parent body
+ellipsoid 11 13.6 23.6 3 3 3.4 c
+ellipsoid 11 16.5 26.2 2.9 3.4 2.8 c
 ellipsoid 11 20.6 26.4 3.2 3.2 3 w
 ellipsoid 11.4 23.6 23.8 3.8 3 3.6 w
 ellipsoid 12.6 23 20.4 3.4 2.8 3.2 w
