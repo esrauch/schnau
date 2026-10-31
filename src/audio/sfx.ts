@@ -5,11 +5,11 @@
  */
 import type { Mixer } from './mixer';
 import { noise } from './synth/instruments';
-import { VOICES, barkLength, renderBark } from './voices';
+import { BARKS, renderBarkSamples } from './bark';
 
-/** A sound made by a voice (voices.ts), not a parameter set: a dog's bark. */
+/** A sound made by a voice (a dog's bark, bark.ts), not a parameter set. */
 export interface VoiceSfx {
-  readonly voice: keyof typeof VOICES;
+  readonly voice: keyof typeof BARKS;
   /** Takes rendered (one is picked at random each time it plays). */
   readonly takes: number;
   /** Every take is levelled to this peak (0..1). */
@@ -77,10 +77,10 @@ export const SFX = {
   },
   uiClick: { wave: 'triangle', freq: 660, attack: 0.001, decay: 0.05, volume: 0.3, bus: 'ui' },
   // The dogs' voices: each dog's yip and WOOF (voices.ts).
-  rozYip: { voice: 'rozYip', takes: 3, volume: 0.7, maxVoices: 2, jitter: 40 },
-  rozWoof: { voice: 'rozWoof', takes: 3, volume: 0.85, maxVoices: 2, jitter: 30 },
-  lumenYip: { voice: 'lumenYip', takes: 3, volume: 0.6, maxVoices: 2, jitter: 50 },
-  lumenWoof: { voice: 'lumenWoof', takes: 3, volume: 0.75, maxVoices: 2, jitter: 40 },
+  rozYip: { voice: 'rozYip', takes: 4, volume: 0.5, maxVoices: 2, jitter: 40 },
+  rozWoof: { voice: 'rozWoof', takes: 4, volume: 0.7, maxVoices: 2, jitter: 30 },
+  lumenYip: { voice: 'lumenYip', takes: 4, volume: 0.45, maxVoices: 2, jitter: 50 },
+  lumenWoof: { voice: 'lumenWoof', takes: 4, volume: 0.6, maxVoices: 2, jitter: 40 },
 } as const satisfies Record<string, SfxDef | VoiceSfx>;
 
 export type SfxId = keyof typeof SFX;
@@ -90,12 +90,14 @@ type AnySfx = SfxDef | VoiceSfx;
 /** Render every take of an effect (one, unless it's a voice with several). */
 export async function renderSfxTakes(def: AnySfx, sampleRate: number): Promise<AudioBuffer[]> {
   if (!('voice' in def)) return [await renderSfx(def, sampleRate)];
-  const voice = VOICES[def.voice];
   const takes: AudioBuffer[] = [];
+  // Barks are made sample by sample (bark.ts), then levelled.
+  const bark = BARKS[def.voice];
   for (let take = 0; take < def.takes; take++) {
-    const ctx = new OfflineAudioContext(1, Math.ceil(barkLength(voice) * sampleRate), sampleRate);
-    renderBark(ctx, voice, take, noise(ctx));
-    takes.push(normalize(await ctx.startRendering(), def.volume));
+    const samples = renderBarkSamples(bark, take, sampleRate);
+    const buffer = new AudioBuffer({ length: samples.length, sampleRate, numberOfChannels: 1 });
+    buffer.copyToChannel(samples, 0);
+    takes.push(normalize(buffer, def.volume));
   }
   return takes;
 }

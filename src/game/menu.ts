@@ -22,8 +22,8 @@ const AREA = {
   z0: T.doghouse.z + 1,
   z1: T.doghouse.z + 2.6,
 };
-/** Where the menu's camera looks. */
-export const MENU_FOCUS = new THREE.Vector3(T.doghouse.x - 0.5, 0, T.doghouse.z + 0.9);
+/** Where the menu's camera looks: between the pen and the dogs. */
+export const MENU_FOCUS = new THREE.Vector3(T.doghouse.x - 0.9, 0, T.doghouse.z + 0.6);
 const WALK_SPEED = 0.8;
 
 interface MenuDog {

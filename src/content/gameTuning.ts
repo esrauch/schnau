@@ -98,24 +98,24 @@ export const ENEMIES: Record<EnemyKind, EnemyStats> = {
 export const gameTuning = {
   /** The garden: enemies spawn just outside it and flee back past it. */
   yard: { radius: 8, spawnRadius: 9.5, escapeRadius: 10.5 },
-  /** Grandma's cottage (its footprint is a circle, for collisions) and the dog's house. */
-  cottage: { x: 0, z: -0.4, radius: 1.3 },
+  /** The sheep pen in the middle (a circle, for collisions) and the dog's house. */
+  pen: { x: 0, z: -0.4, radius: 1.35 },
   doghouse: { x: 1.9, z: 1, radius: 0.5 },
   /** Treats in the jar at the start. */
-  treats: 10,
+  sheep: 8,
   goblin: {
-    /** How close to the cottage it must get to grab a treat. */
+    /** How close to the pen it must get to grab a sheep. */
     reach: 0.4,
     /** Swatting the dog: how close, how often. */
     swatRange: 0.75,
     swatEvery: 1.3,
   },
   bugs: {
-    /** They go for the dog when it's this close, else for the jar. */
+    /** They go for the dog when it's this close, else for the pen (where they pester a sheep out). */
     chaseDog: 3.5,
     stingEvery: 1.4,
-    /** Seconds at the jar to eat one treat. */
-    eatTime: 1.2,
+    /** Seconds pestering the pen before a sheep bolts out. */
+    pesterTime: 2.5,
     /** How many swarms make a cloud, and how far apart they start. */
     cloud: [4, 6] as readonly [number, number],
     cloudSpread: 1.2,
@@ -128,11 +128,26 @@ export const gameTuning = {
     fireDamage: 2,
     /** Extra circles around the first one as its courage drops (one more per this many pips lost). */
     extraFirePerPips: 4,
-    /** Seconds at the cottage per treat it nibbles. */
-    nibbleTime: 2,
+    /** Seconds at the pen per sheep it snatches. */
+    snatchTime: 3,
   },
-  /** Treats dropped on the ground: how close the dog must get to pick one up. */
-  pickup: 0.55,
+  /** A loose sheep: how close the dog must get to send it home, and how fast it wanders off. */
+  pickup: 0.6,
+  looseSheep: { speed: 0.35, radius: 0.3 },
+  /**
+   * Trees in the yard: solid, so the dog and enemies go round them. Clear of
+   * the pen, the doghouse and the dog's way out of it.
+   */
+  trees: [
+    { x: -3.2, z: 2.6, radius: 0.45, kind: 'tree' },
+    { x: 3.9, z: -2.6, radius: 0.4, kind: 'pine' },
+    { x: -4.3, z: -2.9, radius: 0.45, kind: 'tree' },
+    { x: 0.9, z: 4.7, radius: 0.4, kind: 'pine' },
+    { x: 5.2, z: 1.9, radius: 0.45, kind: 'tree' },
+    { x: -1.5, z: -4.9, radius: 0.4, kind: 'pine' },
+    { x: -5.7, z: 0.4, radius: 0.4, kind: 'pine' },
+    { x: 2.7, z: -5.3, radius: 0.45, kind: 'tree' },
+  ] as readonly { x: number; z: number; radius: number; kind: 'tree' | 'pine' }[],
   /** After a hit, the dog can't be hurt again for this long. */
   hurtSafety: 0.9,
   /** Pooped: the dog trots home at this speed and rests this long. */

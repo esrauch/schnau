@@ -55,17 +55,19 @@ export interface Enemy {
   courage: number;
   readonly maxCourage: number;
   /**
-   * come: heading for the cottage; leave: going home (a goblin with or without
-   * a treat); eat: at the jar (bugs, the dragon); panic: scared, running for the woods.
+   * come: heading for the pen; leave: going home (a goblin with or without a
+   * sheep); eat: at the pen (bugs pestering, the dragon snatching); panic:
+   * scared, running for the woods.
    */
   mode: 'come' | 'leave' | 'eat' | 'panic';
+  /** A goblin carrying a sheep off. */
   carrying: boolean;
   /** Frozen by a yip for this long. */
   startled: number;
   /** Knockback still moving it. */
   kx: number;
   kz: number;
-  /** Swat, sting, eat, nibble or fire timer, by kind. */
+  /** Swat, sting, pester or snatch timer, by kind. */
   timer: number;
   /** The dragon's next fire, in seconds. */
   fireClock: number;
@@ -81,10 +83,13 @@ export interface Fire {
   readonly warnTotal: number;
 }
 
-export interface GroundTreat {
+/** A sheep out of the pen (dropped by a goblin, or bolted from bugs), wandering off. */
+export interface LooseSheep {
   readonly id: number;
-  readonly x: number;
-  readonly z: number;
+  x: number;
+  z: number;
+  /** The way it's wandering (a facing). */
+  heading: number;
 }
 
 export interface RunState {
@@ -93,9 +98,9 @@ export interface RunState {
   readonly dog: Dog;
   enemies: Enemy[];
   fires: Fire[];
-  groundTreats: GroundTreat[];
-  /** Treats in the jar: the score. */
-  jar: number;
+  looseSheep: LooseSheep[];
+  /** Sheep safe in the pen: the score. */
+  sheep: number;
   bones: number;
   nextId: number;
   /** How many of each wave (by index in WAVES) have spawned. */
@@ -124,9 +129,11 @@ export type GameEvent =
   | { type: 'panic'; id: number; kind: EnemyKind }
   | { type: 'fled'; id: number }
   | { type: 'grab'; id: number }
-  | { type: 'eaten'; id: number }
-  | { type: 'dropped'; treat: number; x: number; z: number }
-  | { type: 'returned'; treat: number }
+  | { type: 'snatched'; id: number }
+  | { type: 'dropped'; sheep: number; x: number; z: number }
+  | { type: 'bolted'; sheep: number; x: number; z: number }
+  | { type: 'returned'; sheep: number }
+  | { type: 'strayed'; sheep: number }
   | { type: 'stolen'; id: number }
   | { type: 'dogHurt'; damage: number; hearts: number }
   | { type: 'pooped' }
@@ -163,8 +170,8 @@ export function createRun(seed: number, dogKind: DogKind = 'schnauzer'): RunStat
     },
     enemies: [],
     fires: [],
-    groundTreats: [],
-    jar: T.treats,
+    looseSheep: [],
+    sheep: T.sheep,
     bones: 0,
     nextId: 1,
     spawned: WAVES.map(() => 0),
@@ -185,6 +192,7 @@ export function step(state: RunState, input: StepInput): GameEvent[] {
   state.time += DT;
   if (state.outcome === 'playing') spawnWaves(state, events);
   stepDog(state, input, events);
+  stepLooseSheep(state, events);
   for (const enemy of state.enemies) stepEnemy(state, enemy, events);
   separate(state);
   stepFires(state, events);
@@ -198,8 +206,8 @@ export function step(state: RunState, input: StepInput): GameEvent[] {
   });
   if (
     state.outcome === 'playing' &&
-    state.jar === 0 &&
-    state.groundTreats.length === 0 &&
+    state.sheep === 0 &&
+    state.looseSheep.length === 0 &&
     !state.enemies.some((e) => e.carrying)
   ) {
     state.outcome = 'lost';
@@ -355,11 +363,11 @@ function stepDog(state: RunState, input: StepInput, events: GameEvent[]): void {
   }
   moveDog(dog);
 
-  // Bring home any dropped treats it trots over.
-  state.groundTreats = state.groundTreats.filter((t) => {
-    if (dist(t.x, t.z, dog.x, dog.z) > T.pickup) return true;
-    state.jar++;
-    events.push({ type: 'returned', treat: t.id });
+  // Any loose sheep it reaches hurries home to the pen.
+  state.looseSheep = state.looseSheep.filter((s) => {
+    if (dist(s.x, s.z, dog.x, dog.z) > T.pickup) return true;
+    state.sheep++;
+    events.push({ type: 'returned', sheep: s.id });
     return false;
   });
 }
@@ -369,10 +377,36 @@ function doghouseDoor(dogRadius: number): { x: number; z: number } {
   return { x: T.doghouse.x, z: T.doghouse.z + T.doghouse.radius + dogRadius + 0.05 };
 }
 
+/** Loose sheep wander away from the pen; one that reaches the woods is lost. */
+function stepLooseSheep(state: RunState, events: GameEvent[]): void {
+  state.looseSheep = state.looseSheep.filter((s) => {
+    // Away from the pen, meandering a little.
+    const away = Math.atan2(s.x - T.pen.x, s.z - T.pen.z);
+    const wander = Math.sin(state.time * 0.9 + s.id * 2.1) * 0.8;
+    const target = away + wander;
+    s.heading +=
+      Math.atan2(Math.sin(target - s.heading), Math.cos(target - s.heading)) * Math.min(1, DT * 2);
+    s.x += Math.sin(s.heading) * T.looseSheep.speed * DT;
+    s.z += Math.cos(s.heading) * T.looseSheep.speed * DT;
+    pushOutOfTrees(s, T.looseSheep.radius);
+    pushOut(s, T.pen.x, T.pen.z, T.pen.radius + T.looseSheep.radius);
+    if (dist(s.x, s.z, 0, 0) < T.yard.escapeRadius - 1) return true;
+    events.push({ type: 'strayed', sheep: s.id });
+    return false;
+  });
+}
+
+/** Let a sheep out of the pen at a spot, wandering away. */
+function looseSheep(state: RunState, x: number, z: number): LooseSheep {
+  const sheep = { id: state.nextId++, x, z, heading: Math.atan2(x - T.pen.x, z - T.pen.z) };
+  state.looseSheep.push(sheep);
+  return sheep;
+}
+
 function moveDog(dog: Dog): void {
   dog.x += dog.vx * DT;
   dog.z += dog.vz * DT;
-  // Stay in the garden, and out of the cottage and doghouse.
+  // Stay in the garden, and out of the pen, the doghouse and the trees.
   const r = Math.hypot(dog.x, dog.z);
   const max = T.yard.radius - 0.3;
   if (r > max) {
@@ -380,8 +414,9 @@ function moveDog(dog: Dog): void {
     dog.z *= max / r;
   }
   if (dog.mode === 'free') {
-    pushOut(dog, T.cottage.x, T.cottage.z, T.cottage.radius + DOGS[dog.kind].radius);
+    pushOut(dog, T.pen.x, T.pen.z, T.pen.radius + DOGS[dog.kind].radius);
     pushOut(dog, T.doghouse.x, T.doghouse.z, T.doghouse.radius + DOGS[dog.kind].radius);
+    pushOutOfTrees(dog, DOGS[dog.kind].radius);
   }
 }
 
@@ -429,15 +464,14 @@ function woof(state: RunState, charge: number, events: GameEvent[]): void {
   }
 }
 
-/** Take courage away; a goblin drops its treat; at none left, it panics. */
+/** Take courage away; a goblin drops its sheep (loose now); at none left, it panics. */
 function scare(state: RunState, e: Enemy, pips: number, events: GameEvent[]): void {
   e.courage = Math.max(0, e.courage - pips);
   events.push({ type: 'scared', id: e.id, pips });
   if (e.carrying) {
     e.carrying = false;
-    const treat = { id: state.nextId++, x: e.x, z: e.z };
-    state.groundTreats.push(treat);
-    events.push({ type: 'dropped', treat: treat.id, x: treat.x, z: treat.z });
+    const sheep = looseSheep(state, e.x, e.z);
+    events.push({ type: 'dropped', sheep: sheep.id, x: sheep.x, z: sheep.z });
   }
   if (e.courage === 0) panic(state, e, events);
 }
@@ -477,17 +511,17 @@ function stepEnemy(state: RunState, e: Enemy, events: GameEvent[]): void {
     e.startled -= DT;
     speed = 0;
   } else if (e.mode === 'panic' || e.mode === 'leave') {
-    // Out to the woods, straight away from the cottage.
-    const d = dist(e.x, e.z, T.cottage.x, T.cottage.z) || 1;
-    gx = (e.x - T.cottage.x) / d;
-    gz = (e.z - T.cottage.z) / d;
+    // Out to the woods, straight away from the pen.
+    const d = dist(e.x, e.z, T.pen.x, T.pen.z) || 1;
+    gx = (e.x - T.pen.x) / d;
+    gz = (e.z - T.pen.z) / d;
     if (e.mode === 'panic') speed = stats.fleeSpeed;
   } else {
-    // Bugs go for the dog when it's near; everyone else (and bugs otherwise) for the cottage.
+    // Bugs go for the dog when it's near; everyone else (and bugs otherwise) for the pen.
     const chase =
       e.kind === 'bugs' && dog.mode === 'free' && dist(e.x, e.z, dog.x, dog.z) < T.bugs.chaseDog;
-    const tx = chase ? dog.x : T.cottage.x;
-    const tz = chase ? dog.z : T.cottage.z;
+    const tx = chase ? dog.x : T.pen.x;
+    const tz = chase ? dog.z : T.pen.z;
     const d = dist(e.x, e.z, tx, tz) || 1;
     gx = (tx - e.x) / d;
     gz = (tz - e.z) / d;
@@ -496,11 +530,10 @@ function stepEnemy(state: RunState, e: Enemy, events: GameEvent[]): void {
       const w = Math.sin(state.time * 6 + e.id * 1.7) * 0.7;
       [gx, gz] = [gx - gz * w, gz + gx * w];
     }
-    const atCottage =
-      dist(e.x, e.z, T.cottage.x, T.cottage.z) < T.cottage.radius + stats.radius + 0.15;
-    if (atCottage && !chase) {
+    const atPen = dist(e.x, e.z, T.pen.x, T.pen.z) < T.pen.radius + stats.radius + 0.15;
+    if (atPen && !chase) {
       speed = 0;
-      reachCottage(state, e, events);
+      reachPen(state, e, events);
     } else if (e.mode === 'eat') e.mode = 'come';
   }
   if (e.mode !== 'panic') attackDog(state, e, events);
@@ -511,33 +544,46 @@ function stepEnemy(state: RunState, e: Enemy, events: GameEvent[]): void {
   e.x += e.vx * DT;
   e.z += e.vz * DT;
   if (e.mode !== 'panic' && e.mode !== 'leave') {
-    pushOut(e, T.cottage.x, T.cottage.z, T.cottage.radius + stats.radius);
+    pushOut(e, T.pen.x, T.pen.z, T.pen.radius + stats.radius);
   }
+  if (e.kind !== 'dragon') pushOutOfTrees(e, stats.radius);
 
   if (e.kind === 'dragon' && e.mode !== 'panic' && state.outcome === 'playing')
     dragonFire(state, e, events);
 }
 
-/** At the cottage: a goblin grabs a treat and leaves; bugs and the dragon eat at the jar. */
-function reachCottage(state: RunState, e: Enemy, events: GameEvent[]): void {
+/**
+ * At the pen: a goblin grabs a sheep and makes off with it; bugs pester until
+ * a sheep bolts out (loose, for the dog to bring back); the dragon snatches
+ * one now and then (gone for good).
+ */
+function reachPen(state: RunState, e: Enemy, events: GameEvent[]): void {
   if (e.kind === 'goblin') {
-    if (state.jar > 0) {
-      state.jar--;
+    if (state.sheep > 0) {
+      state.sheep--;
       e.carrying = true;
       events.push({ type: 'grab', id: e.id });
     }
     e.mode = 'leave';
     return;
   }
+  const every = e.kind === 'dragon' ? T.dragon.snatchTime : T.bugs.pesterTime;
   if (e.mode !== 'eat') {
     e.mode = 'eat';
-    e.timer = e.kind === 'dragon' ? T.dragon.nibbleTime : T.bugs.eatTime;
+    e.timer = every;
   }
-  if (e.timer <= 0 && state.jar > 0) {
-    state.jar--;
-    events.push({ type: 'eaten', id: e.id });
-    e.timer = e.kind === 'dragon' ? T.dragon.nibbleTime : T.bugs.eatTime;
+  if (e.timer > 0 || state.sheep === 0) return;
+  e.timer = every;
+  state.sheep--;
+  if (e.kind === 'dragon') {
+    events.push({ type: 'snatched', id: e.id });
+    return;
   }
+  // The sheep jumps the fence on the bugs' side and wanders off.
+  const a = Math.atan2(e.x - T.pen.x, e.z - T.pen.z);
+  const r = T.pen.radius + T.looseSheep.radius + 0.1;
+  const sheep = looseSheep(state, T.pen.x + Math.sin(a) * r, T.pen.z + Math.cos(a) * r);
+  events.push({ type: 'bolted', sheep: sheep.id, x: sheep.x, z: sheep.z });
 }
 
 function attackDog(state: RunState, e: Enemy, events: GameEvent[]): void {
@@ -559,9 +605,9 @@ function dragonFire(state: RunState, e: Enemy, events: GameEvent[]): void {
   e.fireClock = T.dragon.fireEvery;
   const dog = state.dog;
   const rng = createRng(deriveSeed(state.seed, 'fire', e.id, Math.round(state.time * 60)));
-  // Aimed where the dog stands (or near the cottage while it's home), more as the dragon tires.
-  const aimX = dog.mode === 'free' ? dog.x : T.cottage.x + (rng.next() - 0.5) * 4;
-  const aimZ = dog.mode === 'free' ? dog.z : T.cottage.z + 2 + rng.next() * 2;
+  // Aimed where the dog stands (or near the pen while it's home), more as the dragon tires.
+  const aimX = dog.mode === 'free' ? dog.x : T.pen.x + (rng.next() - 0.5) * 4;
+  const aimZ = dog.mode === 'free' ? dog.z : T.pen.z + 2 + rng.next() * 2;
   const extra = Math.floor((e.maxCourage - e.courage) / T.dragon.extraFirePerPips);
   const spots: [number, number][] = [[aimX, aimZ]];
   for (let k = 0; k < extra; k++) {
@@ -630,6 +676,11 @@ function separate(state: RunState): void {
       b.x += (dx / d) * push * wb;
       b.z += (dz / d) * push * wb;
     }
+}
+
+/** Keep something of this radius out of the yard's trees (they slide round them). */
+function pushOutOfTrees(p: { x: number; z: number }, radius: number): void {
+  for (const tree of T.trees) pushOut(p, tree.x, tree.z, tree.radius + radius);
 }
 
 function pushOut(p: { x: number; z: number }, cx: number, cz: number, r: number): void {

@@ -1,11 +1,11 @@
 /**
  * Everything that comes and goes in a run, drawn from the simulation's state
- * (it reads, never writes): enemies (with their courage pips), treats on the
- * ground, the dragon's fire circles, and the bark and fire effects, which
+ * (it reads, never writes): enemies (with their courage pips), the flock in
+ * the pen and sheep loose in the yard, the dragon's fire circles, and the bark and fire effects, which
  * react to the simulation's events.
  */
 import * as THREE from 'three';
-import { DOGS, type EnemyKind } from '../content/gameTuning';
+import { DOGS, gameTuning as T, type EnemyKind } from '../content/gameTuning';
 import type { Enemy, GameEvent, RunState } from '../sim/run';
 import { buildRig, getGeometry, voxelMaterial, type Rig } from '../voxel/models';
 import { poseDragon } from './dragonPose';
@@ -17,7 +17,8 @@ const MAX_BUGS = 400;
 interface EnemyView {
   readonly root: THREE.Group;
   readonly body: THREE.Object3D;
-  readonly treat: THREE.Object3D | null;
+  /** The sheep a goblin carries off over its head. */
+  readonly carried: THREE.Object3D | null;
   readonly pips: THREE.Sprite | null;
   /** The dragon's rig (its wings flap), or null for a single-piece enemy. */
   readonly rig: Rig | null;
@@ -25,6 +26,12 @@ interface EnemyView {
   /** A little hop when scared. */
   hop: number;
   facing: number;
+}
+
+interface PenSheep {
+  readonly mesh: THREE.Object3D;
+  goal: [number, number];
+  wait: number;
 }
 
 interface Effect {
@@ -56,7 +63,9 @@ export function blended(
 
 export class Actors {
   private readonly enemies = new Map<number, EnemyView>();
-  private readonly treats = new Map<number, THREE.Object3D>();
+  private readonly loose = new Map<number, THREE.Object3D>();
+  /** The sheep milling about in the pen (as many as the state says are safe). */
+  private readonly flock: PenSheep[] = [];
   private readonly fires = new Map<
     number,
     { root: THREE.Group; fill: THREE.Mesh; ring: THREE.Mesh }
@@ -97,7 +106,8 @@ export class Actors {
   ): void {
     this.time += dt;
     this.syncEnemies(state, dt, blend);
-    this.syncTreats(state);
+    this.syncLooseSheep(state);
+    this.syncPen(state.sheep, dt);
     this.syncFires(state);
     this.syncEffects(dt);
     this.chargeRing.visible = charge !== null;
@@ -112,11 +122,11 @@ export class Actors {
   /** Remove everything (a new run). */
   clear(): void {
     for (const view of this.enemies.values()) this.scene.remove(view.root);
-    for (const t of this.treats.values()) this.scene.remove(t);
+    for (const t of this.loose.values()) this.scene.remove(t);
     for (const f of this.fires.values()) this.scene.remove(f.root);
     for (const fx of this.effects) this.scene.remove(fx.object);
     this.enemies.clear();
-    this.treats.clear();
+    this.loose.clear();
     this.fires.clear();
     this.effects.length = 0;
     this.bugs.count = 0;
@@ -182,21 +192,21 @@ export class Actors {
       body = mesh;
     }
     root.add(body);
-    let treat: THREE.Object3D | null = null;
+    let carried: THREE.Object3D | null = null;
     let pips: THREE.Sprite | null = null;
     if (kind === 'goblin') {
-      // The treat it's stealing, held up over its head.
-      treat = new THREE.Mesh(getGeometry('props/treat'), voxelMaterial);
-      treat.position.set(0, 0.86, 0);
-      treat.castShadow = true;
-      root.add(treat);
+      // The sheep it's stealing, held up over its head.
+      carried = sheepMesh();
+      carried.position.set(0, 0.8, 0);
+      carried.scale.setScalar(0.7);
+      root.add(carried);
       pips = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false }));
       pips.scale.set(0.6, 0.15, 1);
-      pips.position.y = 1.15;
+      pips.position.y = 1.3;
       pips.renderOrder = 10;
       root.add(pips);
     }
-    return { root, body, treat, pips, rig, pipsKey: '', hop: 0, facing: 0 };
+    return { root, body, carried, pips, rig, pipsKey: '', hop: 0, facing: 0 };
   }
 
   private poseEnemy(view: EnemyView, e: Enemy, at: { x: number; z: number }, dt: number): void {
@@ -218,9 +228,10 @@ export class Actors {
       view.body.position.y =
         hop + (moving ? Math.abs(Math.sin(this.time * rate + e.id)) * 0.05 : 0);
       view.body.position.x = e.startled > 0 ? Math.sin(this.time * 60) * 0.03 : 0;
-      if (view.treat) {
-        view.treat.visible = e.carrying;
-        view.treat.rotation.y = this.time * 2;
+      if (view.carried) {
+        // Held up kicking: it wiggles.
+        view.carried.visible = e.carrying;
+        view.carried.rotation.z = Math.sin(this.time * 14 + e.id) * 0.15;
       }
     } else if (e.kind === 'dragon') {
       // A slow, heavy plod; it rears back a little each time it breathes fire.
@@ -241,26 +252,85 @@ export class Actors {
     }
   }
 
-  private syncTreats(state: RunState): void {
+  /** Loose sheep: wandering off, bobbing as they go. */
+  private syncLooseSheep(state: RunState): void {
     const seen = new Set<number>();
-    for (const t of state.groundTreats) {
-      seen.add(t.id);
-      let mesh = this.treats.get(t.id);
+    for (const sheep of state.looseSheep) {
+      seen.add(sheep.id);
+      let mesh = this.loose.get(sheep.id);
       if (!mesh) {
-        mesh = new THREE.Mesh(getGeometry('props/treat'), voxelMaterial);
-        mesh.castShadow = true;
-        this.treats.set(t.id, mesh);
+        mesh = sheepMesh();
+        this.loose.set(sheep.id, mesh);
         this.scene.add(mesh);
       }
-      mesh.position.set(t.x, 0.15 + Math.sin(this.time * 4 + t.id) * 0.06, t.z);
-      mesh.rotation.y = this.time * 2;
-      mesh.scale.setScalar(1.3);
+      mesh.position.set(sheep.x, Math.abs(Math.sin(this.time * 7 + sheep.id)) * 0.04, sheep.z);
+      mesh.rotation.y = sheep.heading;
     }
-    for (const [id, mesh] of this.treats) {
+    for (const [id, mesh] of this.loose) {
       if (seen.has(id)) continue;
       this.scene.remove(mesh);
-      this.treats.delete(id);
+      this.loose.delete(id);
     }
+  }
+
+  /**
+   * The flock in the pen: as many sheep as are safe, each ambling to a spot,
+   * standing a while, ambling on. Just for show (Math.random is fine here).
+   */
+  syncPen(count: number, dt: number): void {
+    const inside = T.pen.radius - 0.45;
+    const spot = (): [number, number] => {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * inside;
+      return [T.pen.x + Math.sin(a) * r, T.pen.z + Math.cos(a) * r];
+    };
+    while (this.flock.length < count) {
+      const mesh = sheepMesh();
+      const [x, z] = spot();
+      mesh.position.set(x, 0.075, z);
+      mesh.rotation.y = Math.random() * Math.PI * 2;
+      this.scene.add(mesh);
+      this.flock.push({ mesh, goal: [x, z], wait: Math.random() * 3 });
+    }
+    while (this.flock.length > count) {
+      const gone = this.flock.pop();
+      if (gone) this.scene.remove(gone.mesh);
+    }
+    for (const sheep of this.flock) {
+      const p = sheep.mesh.position;
+      const dx = sheep.goal[0] - p.x;
+      const dz = sheep.goal[1] - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.03) {
+        const step = Math.min(d, 0.3 * dt);
+        p.x += (dx / d) * step;
+        p.z += (dz / d) * step;
+        const target = Math.atan2(dx, dz);
+        const turn = Math.atan2(
+          Math.sin(target - sheep.mesh.rotation.y),
+          Math.cos(target - sheep.mesh.rotation.y),
+        );
+        sheep.mesh.rotation.y += turn * Math.min(1, dt * 5);
+        p.y = 0.075 + Math.abs(Math.sin(this.time * 8 + p.x * 3)) * 0.025;
+      } else if ((sheep.wait -= dt) <= 0) {
+        sheep.goal = spot();
+        sheep.wait = 1.5 + Math.random() * 4;
+      }
+    }
+    // Sheep don't stand inside each other.
+    for (let i = 0; i < this.flock.length; i++)
+      for (let j = i + 1; j < this.flock.length; j++) {
+        const a = this.flock[i]?.mesh.position;
+        const b = this.flock[j]?.mesh.position;
+        if (!a || !b) continue;
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d >= 0.42 || d === 0) continue;
+        const push = (0.42 - d) / 2;
+        a.x += ((a.x - b.x) / d) * push;
+        a.z += ((a.z - b.z) / d) * push;
+        b.x -= ((a.x - b.x) / d) * push;
+        b.z -= ((a.z - b.z) / d) * push;
+      }
   }
 
   private syncFires(state: RunState): void {
@@ -352,6 +422,13 @@ export class Actors {
       } else fx.update(fx.age / fx.life);
     }
   }
+}
+
+function sheepMesh(): THREE.Mesh {
+  const mesh = new THREE.Mesh(getGeometry('world/sheep'), voxelMaterial);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 /** A flat, unlit shape lying on the ground. */

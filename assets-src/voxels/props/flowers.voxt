@@ -1,0 +1,19 @@
+# A little patch of flowers for the lawn: a few blooms on short stems.
+size 12 5 12
+voxel 0.04
+smooth 1
+colors
+  s leaf
+  y gold
+  p bloomPink
+  w white
+box 2 0 3 2 2 3 s
+box 6 0 2 6 3 2 s
+box 9 0 6 9 2 6 s
+box 4 0 8 4 2 8 s
+box 7 0 9 7 3 9 s
+ellipsoid 2 3 3 1.2 0.8 1.2 y
+ellipsoid 6 4 2 1.2 0.8 1.2 p
+ellipsoid 9 3 6 1.2 0.8 1.2 w
+ellipsoid 4 3 8 1.2 0.8 1.2 p
+ellipsoid 7 4 9 1.2 0.8 1.2 y

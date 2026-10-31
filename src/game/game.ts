@@ -42,7 +42,7 @@ const PICKED_OUTLINE = 0xffd23f;
 /** Camera: pitched down this much, framing about this many units either side of the dog. */
 const CAMERA_PITCH = THREE.MathUtils.degToRad(56);
 const CAMERA_HALF_WIDTH = 2.7;
-/** On the menu: a little closer, framing the cottage, doghouse and both dogs. */
+/** On the menu: a little closer, framing the pen, doghouse and both dogs. */
 const MENU_HALF_WIDTH = 2.3;
 
 export class Game {
@@ -156,7 +156,10 @@ export class Game {
         this.accumulator -= DT;
       }
       this.syncRun(state, dt, { alpha: this.accumulator / DT, previous: this.previous });
-    } else this.menu?.update(dt);
+    } else {
+      this.menu?.update(dt);
+      this.actors.syncPen(T.sheep, dt);
+    }
     this.followCamera(dt);
     this.view.render();
     requestAnimationFrame((t) => this.frame(t));
@@ -187,7 +190,7 @@ export class Game {
     });
     const dragon = state.enemies.find((e) => e.kind === 'dragon');
     this.hud.update({
-      jar: state.jar,
+      sheep: state.sheep,
       hearts: state.dog.hearts,
       maxHearts: stats.hearts,
       bones: state.bones,
@@ -287,11 +290,20 @@ export class Game {
       case 'panic':
         sfx('blip');
         break;
+      case 'bolted':
+        this.hud.say('A sheep bolted! Go get it!', 1.6);
+        break;
       case 'returned':
         sfx('chime');
         break;
       case 'stolen':
-        this.hud.say('A treat got away!', 1.4);
+        this.hud.say('A sheep was stolen!', 1.4);
+        break;
+      case 'strayed':
+        this.hud.say('A sheep wandered off!', 1.4);
+        break;
+      case 'snatched':
+        this.hud.say('The dragon took a sheep!', 1.6);
         break;
       case 'dogHurt':
         sfx('thud');
@@ -311,13 +323,7 @@ export class Game {
       case 'lost':
         if (e.type === 'won') sfx('chime');
         this.overTimer = window.setTimeout(() => {
-          this.hud.end(
-            e.type === 'won',
-            state.jar,
-            state.bones,
-            () => this.start(state.dog.kind),
-            () => this.showMenu(),
-          );
+          this.hud.end(e.type === 'won', state.sheep, state.bones, () => this.showMenu());
         }, 1600);
         break;
     }
@@ -327,7 +333,7 @@ export class Game {
   private followCamera(dt: number): void {
     const { camera } = this.view;
     // Follow the dog as drawn (between steps), so the camera glides too.
-    // On the menu, a fixed view of the cottage, doghouse and both dogs.
+    // On the menu, a fixed view of the pen, doghouse and both dogs.
     const dog = this.state ? this.dog?.rig.root.position : undefined;
     const focus = dog ? new THREE.Vector3(dog.x, 0, dog.z) : MENU_FOCUS;
     this.camTarget.lerp(focus, Math.min(1, dt * 5));

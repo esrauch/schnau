@@ -1,0 +1,18 @@
+# A pine: a short trunk and tiers of dark green narrowing to a point,
+# a lighter green catching the sun on each tier. Centre x = z = 9.
+size 18 36 18
+voxel 0.07
+smooth 2
+colors
+  b bark
+  p pine
+  h pineLight
+ellipsoid 9 3 9 1.4 3.5 1.4 b
+ellipsoid 9 9 9 8 4 8 p
+ellipsoid 9 15 9 6.5 4 6.5 p
+ellipsoid 9 21 9 5 3.6 5 p
+ellipsoid 9 26.5 9 3.6 3.2 3.6 p
+ellipsoid 9 31 9 2 3.2 2 p
+paint ellipsoid 7.5 12 7.5 6 1.5 6 h
+paint ellipsoid 7.5 18 7.5 5 1.5 5 h
+paint ellipsoid 7.5 23.6 7.5 3.8 1.3 3.8 h

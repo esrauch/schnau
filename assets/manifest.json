@@ -26,20 +26,8 @@
       "license": "original"
     },
     {
-      "path": "assets-src/voxels/world/cottage.voxt",
-      "source": "Original voxel model (Grandma's cottage), written by Claude",
-      "author": "Claude",
-      "license": "original"
-    },
-    {
       "path": "assets-src/voxels/world/doghouse.voxt",
       "source": "Original voxel model (the doghouse), written by Claude",
-      "author": "Claude",
-      "license": "original"
-    },
-    {
-      "path": "assets-src/voxels/props/treat.voxt",
-      "source": "Original voxel model (a dog biscuit treat), written by Claude",
       "author": "Claude",
       "license": "original"
     },
@@ -58,6 +46,36 @@
     {
       "path": "assets-src/voxels/enemies/dragon.voxt",
       "source": "Original voxel model (the dragon), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/world/pen.voxt",
+      "source": "Original voxel model (the sheep pen), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/world/sheep.voxt",
+      "source": "Original voxel model (a sheep), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/props/tree.voxt",
+      "source": "Original voxel model (a round leafy tree), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/props/pine.voxt",
+      "source": "Original voxel model (a pine tree), written by Claude",
+      "author": "Claude",
+      "license": "original"
+    },
+    {
+      "path": "assets-src/voxels/props/flowers.voxt",
+      "source": "Original voxel model (a patch of flowers), written by Claude",
       "author": "Claude",
       "license": "original"
     }

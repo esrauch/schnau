@@ -52,23 +52,23 @@ describe('the run', () => {
 });
 
 describe('goblins', () => {
-  it('walk to the cottage, grab a treat and get away with it', () => {
+  it('walk to the pen, grab a sheep and get away with it', () => {
     const state = quietRun();
     state.dog.x = -6; // well out of the way
     spawnEnemy(state, 'goblin', 0, 6);
     const events = run(state, 20);
     expect(events.some((e) => e.type === 'grab')).toBe(true);
     expect(events.some((e) => e.type === 'stolen')).toBe(true);
-    expect(state.jar).toBe(T.treats - 1);
+    expect(state.sheep).toBe(T.sheep - 1);
     expect(state.enemies).toHaveLength(0);
   });
 
-  it('drop the treat when yipped at, and the dog brings it home', () => {
+  it('drop the sheep when yipped at, and the dog sends it home', () => {
     const state = quietRun();
     const goblin = spawnEnemy(state, 'goblin', 0, -3);
     goblin.carrying = true;
     goblin.mode = 'leave';
-    state.jar--;
+    state.sheep--;
     state.dog.x = 0;
     state.dog.z = -5.5;
     state.dog.facing = 0; // facing +z, toward the goblin
@@ -77,12 +77,13 @@ describe('goblins', () => {
     expect(events.some((e) => e.type === 'dropped')).toBe(true);
     expect(goblin.carrying).toBe(false);
     expect(goblin.courage).toBe(ENEMIES.goblin.courage - 1);
-    // Trot over to the treat.
-    const treat = state.groundTreats[0]!;
-    state.dog.x = treat.x;
-    state.dog.z = treat.z;
+    // Trot over to the loose sheep.
+    const sheep = state.looseSheep[0]!;
+    state.dog.x = sheep.x;
+    state.dog.z = sheep.z;
     expect(run(state, DT).some((e) => e.type === 'returned')).toBe(true);
-    expect(state.jar).toBe(T.treats);
+    expect(state.sheep).toBe(T.sheep);
+    expect(state.looseSheep).toHaveLength(0);
   });
 
   it('panic and drop a bone once their courage runs out', () => {
@@ -113,6 +114,7 @@ describe('the WOOF', () => {
     const state = quietRun();
     state.dog.x = 0;
     state.dog.z = 4;
+    state.dog.safe = 5; // the cloud would sting it pooped while it charges
     for (let k = 0; k < 5; k++) spawnEnemy(state, 'bugs', -0.8 + k * 0.4, 5);
     const events = bark(state, 1.5);
     expect(events.filter((e) => e.type === 'panic')).toHaveLength(5);
@@ -190,5 +192,44 @@ describe('the dragon', () => {
     expect(events.some((e) => e.type === 'won')).toBe(true);
     expect(state.outcome).toBe('won');
     expect(state.enemies.every((e) => e.mode === 'panic')).toBe(true);
+  });
+});
+
+describe('the sheep', () => {
+  it('bolt from the pen when bugs pester it, wander off, and are lost in the woods', () => {
+    const state = quietRun();
+    state.dog.x = 6; // far off
+    state.dog.z = 4;
+    spawnEnemy(state, 'bugs', T.pen.x, T.pen.z - T.pen.radius - 0.4);
+    const bolted = run(state, T.bugs.pesterTime + 1.5);
+    expect(bolted.some((e) => e.type === 'bolted')).toBe(true);
+    expect(state.sheep).toBeLessThan(T.sheep);
+    // Nobody fetches it: it wanders into the woods.
+    state.enemies = [];
+    const lost = run(state, 60);
+    expect(lost.some((e) => e.type === 'strayed')).toBe(true);
+  });
+
+  it('get snatched by the dragon at the pen, for good', () => {
+    const state = quietRun();
+    state.dog.x = 6;
+    state.dog.z = 4;
+    spawnEnemy(state, 'dragon', T.pen.x, T.pen.z - T.pen.radius - 1.2);
+    const events = run(state, T.dragon.snatchTime + 1);
+    expect(events.some((e) => e.type === 'snatched')).toBe(true);
+    expect(state.looseSheep).toHaveLength(0);
+  });
+});
+
+describe('the trees', () => {
+  it('stop the dog walking through them', () => {
+    const state = quietRun();
+    const tree = T.trees[0]!;
+    state.dog.x = tree.x - 2;
+    state.dog.z = tree.z;
+    run(state, 3, { ...NO_INPUT, moveX: 1 });
+    expect(Math.hypot(state.dog.x - tree.x, state.dog.z - tree.z)).toBeGreaterThanOrEqual(
+      tree.radius + DOGS.schnauzer.radius - 1e-6,
+    );
   });
 });

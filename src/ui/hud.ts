@@ -1,5 +1,5 @@
 /**
- * The HUD (GAMEPLAY.md): treats in the jar, the dog's hearts, bones, the
+ * The HUD (GAMEPLAY.md): the sheep safe in the pen, the dog's hearts, bones, the
  * dragon's courage while it's here, pop-up messages, the start menu (pick a
  * dog, then Play) and the end screen. Plain DOM over the canvas.
  */
@@ -7,7 +7,7 @@ import { DOG_INFO, type DogKind } from '../content/gameTuning';
 import './hud.css';
 
 export interface HudState {
-  readonly jar: number;
+  readonly sheep: number;
   readonly hearts: number;
   readonly maxHearts: number;
   readonly bones: number;
@@ -17,7 +17,7 @@ export interface HudState {
 
 export class Hud {
   private readonly root: HTMLDivElement;
-  private readonly jar: HTMLDivElement;
+  private readonly sheep: HTMLDivElement;
   private readonly hearts: HTMLDivElement;
   private readonly bones: HTMLDivElement;
   private readonly dragon: HTMLDivElement;
@@ -34,10 +34,10 @@ export class Hud {
     this.root = div('hud');
     const top = div('hud-top');
     this.top = top;
-    this.jar = div('hud-jar');
+    this.sheep = div('hud-sheep');
     this.bones = div('hud-bones');
     this.hearts = div('hud-hearts');
-    top.append(this.jar, this.bones, this.hearts);
+    top.append(this.sheep, this.bones, this.hearts);
     this.dragon = div('hud-dragon');
     this.dragon.innerHTML = '<span>DRAGON</span>';
     const bar = div('hud-dragon-bar');
@@ -52,10 +52,10 @@ export class Hud {
   }
 
   update(s: HudState): void {
-    const key = `${s.jar}|${s.hearts}|${s.maxHearts}|${s.bones}|${s.dragon?.toFixed(2)}`;
+    const key = `${s.sheep}|${s.hearts}|${s.maxHearts}|${s.bones}|${s.dragon?.toFixed(2)}`;
     if (key === this.last) return;
     this.last = key;
-    this.jar.innerHTML = `<b>${s.jar}</b> treats`;
+    this.sheep.innerHTML = `<b>${s.sheep}</b> sheep`;
     this.bones.innerHTML = `<b>${s.bones}</b> bones`;
     this.hearts.textContent =
       '♥'.repeat(s.hearts) + '♡'.repeat(Math.max(0, s.maxHearts - s.hearts));
@@ -101,7 +101,7 @@ export class Hud {
   menu(handlers: { onPick: (dog: DogKind) => void; onPlay: (dog: DogKind) => void }): void {
     this.top.style.display = 'none';
     this.menuRoot.innerHTML = `
-      <div class="hud-title"><h1>Schnau</h1><p>Guard Grandma's treats!</p></div>
+      <div class="hud-title"><h1>Schnau</h1><p>Guard the sheep!</p></div>
       <div class="hud-menu-bottom interactive">
         <p class="hud-strength">Who's on guard today?</p>
         <div class="hud-dogs"></div>
@@ -138,16 +138,13 @@ export class Hud {
     this.top.style.display = '';
   }
 
-  /** The end screen: play again with the same dog, or back to the menu. */
-  end(won: boolean, jar: number, bones: number, onAgain: () => void, onMenu: () => void): void {
+  /** The end screen: Play again goes back to the start menu. */
+  end(won: boolean, sheep: number, bones: number, onAgain: () => void): void {
     this.showScreen(
       won
-        ? `<h1>You did it!</h1><p>The dragon flew off. <b>${jar}</b> treats saved, <b>${bones}</b> bones.</p>`
-        : `<h1>Oh no!</h1><p>The treat jar is empty. <b>${bones}</b> bones.</p>`,
-      [
-        ['Play again', '', onAgain],
-        ['Menu', '', onMenu],
-      ],
+        ? `<h1>You did it!</h1><p>The dragon flew off. <b>${sheep}</b> sheep saved, <b>${bones}</b> bones.</p>`
+        : `<h1>Oh no!</h1><p>All the sheep are gone. <b>${bones}</b> bones.</p>`,
+      [['Play again', '', onAgain]],
     );
   }
 

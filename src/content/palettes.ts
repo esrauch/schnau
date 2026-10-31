@@ -76,6 +76,14 @@ export const voxel = {
   dragonDark: '#a8362c',
   dragonBelly: '#ffd27a',
   horn: '#f3e6c4',
+  // Sheep: fluffy cream wool, a dark face and legs.
+  wool: '#fbf6ea',
+  sheepFace: '#3b3542',
+  // The pen's floor, and the yard's trees and flowers.
+  penDirt: '#dcc28c',
+  pine: '#2f7a52',
+  pineLight: '#4f9e5f',
+  bloomPink: '#ff8fb8',
   leaf: '#3fae3c',
   leafLight: '#7fd34a',
   bark: '#9a6438',

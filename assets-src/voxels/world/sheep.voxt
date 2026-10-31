@@ -1,0 +1,33 @@
+# A sheep: a lumpy cloud of cream wool on four dark legs, a dark face with
+# floppy ears, a woolly tuft on top and bright eyes. Faces +z; centre x = 7.
+size 15 15 20
+voxel 0.03
+smooth 2
+colors
+  w wool
+  f sheepFace
+  e white
+  k ink
+# Legs.
+ellipsoid 4.5 2 6 1.25 2.4 1.25 f
+ellipsoid 9.5 2 6 1.25 2.4 1.25 f
+ellipsoid 4.5 2 14 1.25 2.4 1.25 f
+ellipsoid 9.5 2 14 1.25 2.4 1.25 f
+# The wool: a big body and lumps all over, a puff of a tail.
+ellipsoid 7 7.5 10 5.4 4.2 6.8 w
+ellipsoid 4.6 10 7.5 2.8 2.4 3 w
+ellipsoid 9.4 10 8.5 2.8 2.4 3 w
+ellipsoid 7 10.8 12.5 3.4 2.2 3.4 w
+ellipsoid 4.4 9 13.5 2.6 2.4 2.8 w
+ellipsoid 9.6 9 14 2.6 2.4 2.8 w
+ellipsoid 7 8.4 17 2 2 1.6 w
+# The head: a dark face, floppy ears, a woolly tuft.
+ellipsoid 7 9 2.8 2.5 2.8 2.6 f
+ellipsoid 3.8 10 3.8 1.4 0.95 1.3 f
+ellipsoid 10.2 10 3.8 1.4 0.95 1.3 f
+ellipsoid 7 11.8 3.8 2.4 1.5 2 w
+# Bright eyes.
+paint ellipsoid 5.8 9.6 1 0.8 0.8 2 e
+paint ellipsoid 8.2 9.6 1 0.8 0.8 2 e
+paint ellipsoid 5.9 9.5 1 0.4 0.45 2 k
+paint ellipsoid 8.1 9.5 1 0.4 0.45 2 k
