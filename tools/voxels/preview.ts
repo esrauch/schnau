@@ -5,6 +5,8 @@
  *   npm run preview-models              every model, plus a contact sheet per folder
  *   npm run preview-models -- props/crate   just these models
  *   npm run preview-models -- --close hero/x   big front, ¾, side and ¾-back views → previews/<id>-close.png
+ *   npm run preview-models -- --anim=trot hero/x   a rigged dog's trot (or idle, bark) as a strip of
+ *                                                  frames → previews/<id>-trot.png
  *
  * Writes previews/<id>.png (front, ¾ and side) and previews/sheet-<folder>.png.
  * Uses the system Chrome through playwright-core, so no browser download is needed.
@@ -38,7 +40,8 @@ try {
   );
   const args = process.argv.slice(2);
   const close = args.includes('--close');
-  const wanted = args.filter((a) => a !== '--close');
+  const anim = args.find((a) => a.startsWith('--anim='))?.slice('--anim='.length);
+  const wanted = args.filter((a) => !a.startsWith('--'));
   const ids = wanted.length > 0 ? wanted : allIds;
   mkdirSync(OUT, { recursive: true });
 
@@ -51,10 +54,16 @@ try {
 
   for (const id of ids) {
     const name = id.replaceAll('/', '-');
-    if (close) await shoot(`render=closeup&model=${encodeURIComponent(id)}`, `${name}-close.png`);
+    if (anim)
+      await shoot(
+        `render=poses&anim=${anim}&model=${encodeURIComponent(id)}`,
+        `${name}-${anim}.png`,
+      );
+    else if (close)
+      await shoot(`render=closeup&model=${encodeURIComponent(id)}`, `${name}-close.png`);
     else await shoot(`render=turntable&model=${encodeURIComponent(id)}`, `${name}.png`);
   }
-  if (wanted.length === 0 && !close) {
+  if (wanted.length === 0 && !close && !anim) {
     const groups = [
       ...new Set(allIds.filter((id) => id.includes('/')).map((id) => id.split('/')[0])),
     ];

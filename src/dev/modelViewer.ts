@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { common, hexToNumber, sky } from '../content/palettes';
 import { syncCelSun, toonMaterial } from '../render/toon';
 import { greedyMesh } from '../voxel/mesh';
-import { MODEL_IDS, getGeometry, getModel, voxelMaterial } from '../voxel/models';
+import { DOG_STYLES, DogAnimator } from '../render/dogAnimator';
+import { MODEL_IDS, buildRig, getGeometry, getModel, voxelMaterial } from '../voxel/models';
 
 const params = new URLSearchParams(location.search);
 const renderMode = params.get('render'); // 'turntable' | 'sheet' | null
@@ -65,6 +66,8 @@ function aim(target: THREE.Vector3, yawDeg: number, pitchDeg: number, dist: numb
 
 if (renderMode === 'turntable') renderTurntable(params.get('model') ?? MODEL_IDS[0] ?? '');
 else if (renderMode === 'closeup') renderCloseup(params.get('model') ?? MODEL_IDS[0] ?? '');
+else if (renderMode === 'poses')
+  renderPoses(params.get('model') ?? MODEL_IDS[0] ?? '', params.get('anim') ?? 'trot');
 else if (renderMode === 'sheet') renderSheet(params.get('group') ?? '');
 else interactive();
 
@@ -119,6 +122,49 @@ function renderCloseup(id: string): void {
     aim(target, yaw, pitch, dist);
     renderer.render(scene, camera);
   });
+  markReady();
+}
+
+/**
+ * A dog rig animating, as a strip of frames (¾ view, then side view), to check
+ * poses without watching it move. `anim`: idle, trot or bark.
+ */
+function renderPoses(id: string, anim: string): void {
+  document.body.classList.add('render');
+  const cols = 6;
+  const cell = 200;
+  renderer.setSize(cols * cell, cell * 2);
+  const rig = buildRig(id);
+  for (const mesh of rig.meshes) mesh.castShadow = true;
+  scene.add(rig.root, tile(0));
+  const style = id.includes('spitz') ? DOG_STYLES.spitz : DOG_STYLES.schnauzer;
+  const animator = new DogAnimator(rig, style);
+  const size = new THREE.Box3().setFromObject(rig.root).getSize(new THREE.Vector3());
+  const target = new THREE.Vector3(0, size.y / 2, 0);
+  const dist = Math.max(size.x, size.y, size.z) * 2.9;
+  camera.aspect = 1;
+  camera.updateProjectionMatrix();
+  renderer.setScissorTest(true);
+  // Frames spread over one stride (trot), one bark, or a few seconds (idle).
+  const span = anim === 'trot' ? 1 / style.strideRate : anim === 'bark' ? 0.5 : 6;
+  animator.speed = anim === 'trot' ? 1 : 0;
+  if (anim === 'trot') for (let i = 0; i < 30; i++) animator.update(1 / 60); // get up to speed
+  if (anim === 'bark') animator.bark();
+  for (let i = 0; i < cols; i++) {
+    animator.update(i === 0 ? 0 : span / cols);
+    const views: [number, number][] = [
+      [35, 18],
+      [90, 6],
+    ];
+    views.forEach(([yaw, pitch], row) => {
+      const x = i * cell;
+      const y = (1 - row) * cell;
+      renderer.setViewport(x, y, cell, cell);
+      renderer.setScissor(x, y, cell, cell);
+      aim(target, yaw, pitch, dist);
+      renderer.render(scene, camera);
+    });
+  }
   markReady();
 }
 

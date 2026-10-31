@@ -109,6 +109,36 @@ paint box 0 0 0 2 0 0 r`,
     expect(() => parseVoxt('test', 'size 1 1 1\npaint slice 0')).toThrow(/paint works/);
   });
 
+  it('splits a model into parts, each with its own voxels, painting across them', () => {
+    const m = parseVoxt(
+      'test',
+      `size 3 1 1
+colors
+  g gold
+  r red
+part body pivot 1 0 0
+box 0 0 0 1 0 0 g
+part tail pivot 2 0 0 parent body
+box 2 0 0 2 0 0 g
+part body
+box 1 0 0 1 0 0 g
+part tail
+box 1 0 0 1 0 0 g
+paint box 1 0 0 1 0 0 r`,
+    );
+    expect(m.parts.map((p) => [p.name, p.parent])).toEqual([
+      ['body', null],
+      ['tail', 'body'],
+    ]);
+    const [body, tail] = m.parts;
+    // They overlap at x = 1, and the paint reached both.
+    expect([...body!.data]).toEqual([1, 2, 0]);
+    expect([...tail!.data]).toEqual([0, 2, 1]);
+    expect([...m.data]).toEqual([1, 2, 1]);
+    expect(() => parseVoxt('test', 'size 1 1 1\npart a pivot 0 0 0 parent b')).toThrow(/parent/);
+    expect(parseVoxt('test', 'size 1 1 1').parts.map((p) => p.name)).toEqual(['root']);
+  });
+
   it('rejects a bad ellipsoid', () => {
     expect(() =>
       parseVoxt('test', 'size 3 3 3\ncolors\n  g gold\nellipsoid 1 1 1 0 1 1 g'),
@@ -154,6 +184,7 @@ describe('greedyMesh', () => {
       colors: ['#ff0000', '#00ff00'],
       data: new Uint8Array(w * h * d),
       smooth: 0,
+      parts: [],
     };
     for (let z = 0; z < d; z++)
       for (let y = 0; y < h; y++)

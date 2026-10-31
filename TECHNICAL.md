@@ -44,12 +44,22 @@ How we build it: the stack, the architecture, and how assets get made. The tech 
 - **Colors** have one source of truth, `src/content/palettes.ts`: `common` becomes CSS custom properties (`ui/paletteVars.ts`), `voxel` is the named colors models use, `sky` and `cel` set the light.
 - No font is bundled yet (system-ui). If one is added, self-host it under `assets/fonts` and wait for it in `main.ts` before building the game.
 
+### Animation
+
+**Procedural, not keyframed** (`src/render/dogAnimator.ts`, `DogAnimator`): every pose is a few sines layered on the rig's rest pose, so it's free and blends smoothly. Set `speed` (0 standing … 1 full trot) every frame from how fast the dog moves, call `bark()`, and `update(dt)`.
+
+- **Idle:** breathing, a lazy tail wag, glancing about, the odd curious head tilt.
+- **Trot:** diagonal leg pairs swing (feet lift going forward), the body bobs twice a stride and rolls (the waddle), the head bobs, the tail wags faster.
+- **Bark** (0.5 s): wind-up (head dips, body squashes), toss (head up, body stretches, a hop for the spitz), settle; then an excited wag.
+- Each breed has a `DogStyle` (`DOG_STYLES`): stride rate, leg swing, bob, waddle, bark hop. The schnauzer is square and planted; the spitz quick and bouncy.
+- **Check poses** with `npm run preview-models -- --anim=trot|bark|idle <id>`: a strip of frames, ¾ view above and side view below (`previews/<id>-<anim>.png`).
+
 ## 5. Audio
 
 One `AudioContext`, with a mixer: `master → (music, sfx, ui)` buses (`audio/mixer.ts`, levels in `src/content/tuning.ts`). `Conductor` (`src/game/conductor.ts`) starts music on the first tap (browsers require a gesture), crossfades between songs on bar lines, and plays SFX.
 
 - **Songs are data** (`src/audio/songs/`): patterns per stem in a compact notation (`audio/synth/notes.ts`), instruments in `audio/synth/instruments.ts`, rendered to looping buffers with an `OfflineAudioContext`. All songs share `SONG_GRID` (120 BPM, 4/4, 8 bars, A minor) so any two can crossfade. `placeholder.ts` is a stand-in until real songs are written.
-- **SFX** are sfxr-style parameter sets in `audio/sfx.ts` (a small generic starter set), with voice limits and pitch jitter.
+- **SFX** are sfxr-style parameter sets in `audio/sfx.ts` (a small generic starter set, plus the dogs' voices: the schnauzer's gruff `woof`, the spitz's bright `yip`), with voice limits and pitch jitter.
 - **Samples** (CC0 / public domain) are allowed for what synthesis does badly: crowds, voices.
 - `src/beat/`: a beat clock and tap calibration, in case gameplay ever needs to sync to the music.
 
@@ -70,6 +80,7 @@ slice 0             # front-view grid at depth z; rows top to bottom
 - **`ellipsoid x y z rx ry rz c`** fills a rounded blob (centre and radii in voxels, decimals allowed): the main tool for soft cartoon shapes.
 - **`paint ellipsoid …` / `paint box …`** recolours only voxels already filled: markings that follow the curved surface (eyes, glints, collars, patches) without adding bumps. Order matters: a later paint or shape covers an earlier one.
 - **`smooth [passes]`** meshes the model as a rounded surface (surface nets, `src/voxel/smooth.ts`). The voxels are blurred into a density field; vertices sit where it crosses ½, relaxed by the passes (default 2) within their cells, and **normals come from the field's gradient**, so the cel terminator sweeps cleanly with no voxel staircase. Each quad keeps its own voxel's colour, so colour patches stay crisp (their edges follow the voxel grid, so keep patches simple).
+- **`part <name> pivot x y z [parent <name>]`** splits a model into separately animated parts (shapes after it fill that part; `part <name>` alone goes back to one). Each part has its own voxels, so parts overlap freely: a leg's top tucked into the body leaves no hole when it swings. `paint` recolours every part. `buildRig(id)` (`src/voxel/models.ts`) gives a group per part at its pivot, nested under its parent; `getGeometry(id)` is still the whole model in one piece (for previews and props).
 - **Watch for overhangs** (a tail plume over a back, a brim): sunlight slipping under one leaves a lit island inside its shadow. Fill underneath so the shape meets the body. Without it, models are greedy-meshed blocks (`src/voxel/mesh.ts`).
 - Models live in `assets-src/voxels/<folder>/<name>.voxt`; the **model id is the path** (`props/crate`). Vite loads them as text, so edits hot-reload.
 - Slice 0 is the front and faces +z. `mirror x` makes each row the left half plus the centre column.
@@ -77,7 +88,7 @@ slice 0             # front-view grid at depth z; rows top to bottom
 
 **Making a model:** write the `.voxt` → register it in `assets/manifest.json` (`author: "Claude"`, `license: "original"`) → `npm run preview-models -- <id>` and look at `previews/<id>.png` and the folder's contact sheet; for detail work, `npm run preview-models -- --close <id>` renders big front, ¾, side and ¾-back views (`previews/<id>-close.png`) → use it with `getGeometry(id)` and `voxelMaterial`.
 
-**The heroes** (`hero/blackSchnauzer`, `hero/spitz`) are 0.03-unit voxels, about 0.85 tall, with cartoon proportions (big heads, stubby legs). The spitz is modelled on a real dog from a photo: pale cream, apricot crown and rounded upright ears, white muzzle, teal collar with a silver bone tag. Black fur is a cool charcoal (`coal`), since true black has no lit side. Judge models from the game camera at phone size: a thing should read from its silhouette alone.
+**The heroes** (`hero/blackSchnauzer`, `hero/spitz`) are rigged: `body`; `legFrontLeft`, `legFrontRight`, `legBackLeft`, `legBackRight` (pivots at shoulder and hip, *not* parented, so they stay planted while the body bobs); `tail` and `head` (parented to the body). The dog's left is +x. They are 0.03-unit voxels, about 0.85 tall, with cartoon proportions (big heads, stubby legs). The spitz is modelled on a real dog from a photo: pale cream, apricot crown and rounded upright ears, white muzzle, teal collar with a silver bone tag. Black fur is a cool charcoal (`coal`), since true black has no lit side. Judge models from the game camera at phone size: a thing should read from its silhouette alone.
 
 ## 7. Licensing
 
@@ -122,7 +133,7 @@ A static site. `.github/workflows/deploy.yml` runs `npm run check` and deploys `
 |---|---|
 | `npm run check` | Lint, Prettier check, typecheck, tests, asset-license check. Run before every commit. |
 | `npm run build` / `build:release` | Build with / without the dev pages. |
-| `npm run preview-models [--close] [ids…]` | PNG turntables → `previews/<id>.png`, plus a contact sheet per folder; `--close` for big detail views. |
-| `npm run screenshot [seed] [query] [name]` | Phone-size (375×812 @2x) capture → `previews/<name>.png`. |
+| `npm run preview-models [--close \| --anim=trot] [ids…]` | PNG turntables → `previews/<id>.png`, plus a contact sheet per folder; `--close` for big detail views; `--anim=` for a rigged dog's animation as a strip of frames. |
+| `npm run screenshot [seed] [query] [name]` | Phone-size (375×812 @2x) capture → `previews/<name>.png`. `TAP=<ms>` taps the screen first and captures that long after. |
 | `npm run render-audio [song:id \| stem:song/stem \| sfx:id …]` | WAVs and waveform PNGs in `previews/audio/`, with levels and a loop-seam check. |
 | `npm run import-vox -- file.vox folder/name [voxelSize]` | Convert a MagicaVoxel model to `.voxt`. |

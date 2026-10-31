@@ -17,8 +17,16 @@
  *   slice 0             a front-view slice at depth z (0 = the front, facing the camera)
  *     ..k..             rows from top to bottom, columns left to right
  *   slice 1-3           a range: the same grid for depths 1, 2 and 3
+ *   part head pivot 10 16 9 parent body
+ *                       start a separately animated part: shapes after this fill it (in the same
+ *                       coordinates), it turns about its pivot, and moves with its parent if given
+ *   part body           go back to drawing into a part defined above
  *
  * '.' (or a space) is empty. Steps apply in order, so later ones overwrite earlier ones.
+ *
+ * Parts: each has its own voxels, so parts may overlap (a leg's top tucked
+ * inside the body never leaves a hole when the leg swings). `paint` recolours
+ * every part. Shapes before the first `part` line go to a part named "root".
  */
 import { voxel as voxelPalette, type Hex } from '../content/palettes';
 
@@ -35,6 +43,18 @@ export interface VoxelModel {
   readonly data: Uint8Array;
   /** Smoothing passes for a rounded mesh; 0 meshes it as blocks. */
   readonly smooth: number;
+  /** The separately animated parts (at least one). `data` above is all of them overlaid. */
+  readonly parts: readonly VoxelPart[];
+}
+
+export interface VoxelPart {
+  readonly name: string;
+  /** The part it moves with, or null for one fixed to the model. */
+  readonly parent: string | null;
+  /** Where it turns about, in voxel coordinates (like an ellipsoid's centre). */
+  readonly pivot: readonly [number, number, number];
+  /** Its own voxels, laid out like VoxelModel.data. */
+  readonly data: Uint8Array;
 }
 
 export class VoxtError extends Error {
@@ -61,7 +81,14 @@ export function parseVoxt(id: string, source: string): VoxelModel {
   let smooth = 0;
   const legend = new Map<string, number>(); // char → 1-based color index
   const colors: Hex[] = [];
+  /** The current part's voxels. */
   let data: Uint8Array | null = null;
+  const parts: {
+    name: string;
+    parent: string | null;
+    pivot: [number, number, number];
+    data: Uint8Array;
+  }[] = [];
   let mode: 'top' | 'colors' | 'slice' = 'top';
   let slice: { from: number; to: number; rows: string[]; line: number } | null = null;
 
@@ -113,7 +140,8 @@ export function parseVoxt(id: string, source: string): VoxelModel {
     if (paint) words.shift();
     const head = words[0] as string;
     const put = (d: Uint8Array, i: number, v: number): void => {
-      if (!paint || d[i]) d[i] = v;
+      if (!paint) d[i] = v;
+      else for (const part of parts) if (part.data[i]) part.data[i] = v;
     };
 
     if (indented && mode === 'colors') {
@@ -141,6 +169,31 @@ export function parseVoxt(id: string, source: string): VoxelModel {
         }
         size = nums as [number, number, number];
         data = new Uint8Array(size[0] * size[1] * size[2]);
+        parts.push({ name: 'root', parent: null, pivot: [0, 0, 0], data });
+        break;
+      }
+      case 'part': {
+        const { size: dims } = need(lineNo);
+        const existing = words.length === 2 ? parts.find((p) => p.name === words[1]) : undefined;
+        if (existing) {
+          data = existing.data;
+          break;
+        }
+        const m = /^part (\S+) pivot (\S+) (\S+) (\S+)(?: parent (\S+))?$/.exec(words.join(' '));
+        if (!m) fail(lineNo, 'expected "part <name> pivot <x> <y> <z> [parent <name>]"');
+        const [, name, px, py, pz, parent] = m!;
+        const pivot = [Number(px), Number(py), Number(pz)] as [number, number, number];
+        if (pivot.some((n) => !Number.isFinite(n))) fail(lineNo, 'pivot needs three numbers');
+        if (parts.some((p) => p.name === name)) fail(lineNo, `there's already a part "${name}"`);
+        if (parent !== undefined && !parts.some((p) => p.name === parent)) {
+          fail(lineNo, `parent "${parent}" must be a part defined above`);
+        }
+        // An empty implicit root (nothing drawn before the first part) isn't kept.
+        if (parts.length === 1 && parts[0]!.name === 'root' && !parts[0]!.data.some((v) => v)) {
+          parts.pop();
+        }
+        data = new Uint8Array(dims[0] * dims[1] * dims[2]);
+        parts.push({ name: name!, parent: parent ?? null, pivot, data });
         break;
       }
       case 'voxel':
@@ -239,8 +292,10 @@ export function parseVoxt(id: string, source: string): VoxelModel {
   flushSlice();
 
   const {
-    data: d,
     size: [width, height, depth],
   } = need(lines.length);
-  return { id, width, height, depth, scale, colors, data: d, smooth };
+  // Every part overlaid, later parts on top: the model as one piece.
+  const all = new Uint8Array(width * height * depth);
+  for (const part of parts) part.data.forEach((v, i) => v && (all[i] = v));
+  return { id, width, height, depth, scale, colors, data: all, smooth, parts };
 }

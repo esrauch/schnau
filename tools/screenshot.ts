@@ -4,6 +4,7 @@
  *
  *   npm run screenshot                    → previews/game.png (seed 8)
  *   npm run screenshot -- 3 foo=1 name    → seed 3, extra URL params, saved as previews/name.png
+ *   TAP=250 npm run screenshot            → tap the middle of the screen, then capture 250 ms later
  *
  * Uses the system Chrome through playwright-core.
  */
@@ -35,6 +36,10 @@ try {
   page.on('pageerror', (e) => console.error(`page error: ${e.message}`));
   await page.goto(`http://localhost:${port}/?seed=${seed}${extraQuery ? `&${extraQuery}` : ''}`);
   await page.waitForTimeout(1500);
+  if (process.env.TAP) {
+    await page.mouse.click(187, 400);
+    await page.waitForTimeout(Number(process.env.TAP));
+  }
   mkdirSync(join(ROOT, 'previews'), { recursive: true });
   const file = join(ROOT, 'previews', `${name}.png`);
   await page.screenshot({ path: file });

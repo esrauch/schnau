@@ -63,6 +63,32 @@ export const SFX = {
     noteStep: 0.055,
   },
   uiClick: { wave: 'triangle', freq: 660, attack: 0.001, decay: 0.05, volume: 0.3, bus: 'ui' },
+  /** The schnauzer: a short, gruff "woof" (a buzzy tone dropping fast through a closing filter). */
+  woof: {
+    wave: 'sawtooth',
+    freq: 330,
+    freqEnd: 170,
+    attack: 0.008,
+    decay: 0.17,
+    volume: 0.75,
+    filter: { type: 'lowpass', freq: 1500, freqEnd: 420, q: 5 },
+    maxVoices: 2,
+    jitter: 60,
+  },
+  /** The spitz: a bright little "yip", rising then dropping. */
+  yip: {
+    wave: 'sawtooth',
+    freq: 760,
+    freqEnd: 520,
+    attack: 0.004,
+    decay: 0.1,
+    volume: 0.55,
+    filter: { type: 'bandpass', freq: 1800, freqEnd: 1100, q: 3 },
+    notes: [1, 1.12],
+    noteStep: 0.035,
+    maxVoices: 2,
+    jitter: 80,
+  },
 } as const satisfies Record<string, SfxDef>;
 
 export type SfxId = keyof typeof SFX;
