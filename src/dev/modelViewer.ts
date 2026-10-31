@@ -17,9 +17,10 @@ import { MODEL_IDS, buildRig, getGeometry, getModel, voxelMaterial } from '../vo
 
 const params = new URLSearchParams(location.search);
 
-type Gait = 'idle' | 'walk' | 'trot';
+type Gait = 'idle' | 'walk' | 'trot' | 'gallop';
 /** The interactive page's gaits, as an animator speed. */
-const GAIT_SPEED: Record<Gait, number> = { idle: 0, walk: 0.5, trot: 1 };
+const GAIT_SPEED: Record<Gait, number> = { idle: 0, walk: 0.5, trot: 1, gallop: 2 };
+const isGait = (g: string | null): g is Gait => g !== null && g in GAIT_SPEED;
 const renderMode = params.get('render'); // 'turntable' | 'sheet' | null
 const $ = <T extends HTMLElement>(sel: string): T => {
   const el = document.querySelector<T>(sel);
@@ -137,7 +138,7 @@ function renderCloseup(id: string): void {
 
 /**
  * A dog rig animating, as a strip of frames (¾ view, then side view), to check
- * poses without watching it move. `anim`: idle, trot or bark.
+ * poses without watching it move. `anim`: idle, trot, gallop or bark.
  */
 function renderPoses(id: string, anim: string): void {
   document.body.classList.add('render');
@@ -156,9 +157,16 @@ function renderPoses(id: string, anim: string): void {
   camera.updateProjectionMatrix();
   renderer.setScissorTest(true);
   // Frames spread over one stride (trot), one bark, or a few seconds (idle).
-  const span = anim === 'trot' ? 1 / style.strideRate : anim === 'bark' ? 0.5 : 6;
-  animator.speed = anim === 'trot' ? 1 : 0;
-  if (anim === 'trot') for (let i = 0; i < 30; i++) animator.update(1 / 60); // get up to speed
+  const span =
+    anim === 'trot'
+      ? 1 / style.strideRate
+      : anim === 'gallop'
+        ? 1 / style.gallopRate
+        : anim === 'bark'
+          ? 0.5
+          : 6;
+  animator.speed = anim === 'trot' ? 1 : anim === 'gallop' ? 2 : 0;
+  if (animator.speed > 0) for (let i = 0; i < 30; i++) animator.update(1 / 60); // get up to speed
   if (anim === 'bark') animator.bark();
   for (let i = 0; i < cols; i++) {
     animator.update(i === 0 ? 0 : span / cols);
@@ -205,10 +213,8 @@ function interactive(): void {
   let animator: DogAnimator | null = null;
   /** The shown model's size: the camera frames it, whatever its size and the screen's shape. */
   let size = new THREE.Vector3(1, 1, 1);
-  let gait: Gait =
-    params.get('anim') === 'walk' || params.get('anim') === 'trot'
-      ? (params.get('anim') as Gait)
-      : 'idle';
+  const asked = params.get('anim');
+  let gait: Gait = isGait(asked) ? asked : 'idle';
   let slow = false;
   let spin = true;
   let yaw = 35;
@@ -230,7 +236,7 @@ function interactive(): void {
     buttons.set(key, button);
   };
   const refreshBar = (): void => {
-    for (const g of ['idle', 'walk', 'trot'] as const)
+    for (const g of ['idle', 'walk', 'trot', 'gallop'] as const)
       buttons.get(g)?.classList.toggle('on', gait === g);
     buttons.get('slow')?.classList.toggle('on', slow);
     buttons.get('spin')?.classList.toggle('on', spin);
@@ -244,6 +250,7 @@ function interactive(): void {
   addButton('idle', '1 Idle', () => setGait('idle'));
   addButton('walk', '2 Walk', () => setGait('walk'));
   addButton('trot', '3 Trot', () => setGait('trot'));
+  addButton('gallop', '4 Gallop', () => setGait('gallop'));
   addButton('bark', 'Space: Bark!', bark);
   addButton('slow', 'Slow-mo', () => {
     slow = !slow;
@@ -259,6 +266,7 @@ function interactive(): void {
     if (e.key === '1') setGait('idle');
     else if (e.key === '2') setGait('walk');
     else if (e.key === '3') setGait('trot');
+    else if (e.key === '4') setGait('gallop');
     else if (e.key === ' ') {
       e.preventDefault();
       bark();

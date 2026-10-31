@@ -46,13 +46,15 @@ How we build it: the stack, the architecture, and how assets get made. The tech 
 
 ### Animation
 
-**Procedural, not keyframed** (`src/render/dogAnimator.ts`, `DogAnimator`): every pose is a few sines layered on the rig's rest pose, so it's free and blends smoothly. Set `speed` (0 standing … 1 full trot) every frame from how fast the dog moves, call `bark()`, and `update(dt)`.
+**Procedural, not keyframed** (`src/render/dogAnimator.ts`, `DogAnimator`): every pose is a few sines layered on the rig's rest pose, so it's free and blends smoothly. Set `speed` (0 standing … 1 full trot … 2 full gallop) every frame from how fast the dog moves, call `bark()`, and `update(dt)`.
 
 - **Idle:** breathing, a lazy tail wag, glancing about, the odd curious head tilt.
 - **Trot:** diagonal leg pairs swing (feet lift going forward), the body bobs twice a stride and rolls (the waddle), the head bobs, the tail wags faster.
+- **Gallop** (`speed` 1 → 2, blending in from the trot): a cartoon bound. Both back legs drive together, then both fronts reach together (each pair a touch apart, so feet land one-two); the body rocks like a rocking horse, the head counter-rocks to stay level, all four feet leave the ground at full stretch, and the tail streams out behind.
 - **Bark** (0.5 s): wind-up (head dips, body squashes), toss (head up, body stretches, a hop for the spitz), settle; then an excited wag.
-- Each breed has a `DogStyle` (`DOG_STYLES`): stride rate, leg swing, bob, waddle, bark hop. The schnauzer is square and planted; the spitz quick and bouncy.
-- **Check poses** with `npm run preview-models -- --anim=trot|bark|idle <id>`: a strip of frames, ¾ view above and side view below (`previews/<id>-<anim>.png`).
+- Each breed has a `DogStyle` (`DOG_STYLES`, and `DOG_STYLE_FOR_MODEL` by model id): stride rate, leg swing, bob, waddle, bark hop, wag, and the gallop's rate, reach, rock and hop. The schnauzer is square and planted; the spitz quick and bouncy.
+- **Watch them** on `/dev/models.html`: Idle, Walk, Trot, Gallop (keys 1–4), Bark (Space), slow motion, and spin or drag to turn.
+- **Check poses** with `npm run preview-models -- --anim=trot|gallop|bark|idle <id>`: a strip of frames, ¾ view above and side view below (`previews/<id>-<anim>.png`).
 
 ## 5. Audio
 

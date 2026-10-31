@@ -6,6 +6,11 @@
  * - Idle: breathing, a lazy tail wag, glancing about, now and then a head tilt.
  * - Trot (`speed` 0..1): diagonal leg pairs swing, the body bobs twice a
  *   stride and rolls side to side (the waddle), the head bobs, the tail wags faster.
+ * - Gallop (`speed` 1..2, blending in from the trot): a cartoon bound. Both
+ *   back legs drive together, then both front legs reach together, so the
+ *   dog bunches up and stretches out; the body rocks like a rocking horse; at
+ *   full stretch all four feet leave the ground; the head counter-rocks to
+ *   stay level and the tail streams out behind.
  * - Bark: a wind-up (head dips, body squashes), the bark (head tosses up,
  *   body stretches, maybe a hop), then a settle, with an excited wag after.
  *
@@ -30,28 +35,41 @@ export interface DogStyle {
   /** Tail wag speed and size, as multiples of the base wag (a big plume wants slow, small swings). */
   readonly wagSpeed: number;
   readonly wagSize: number;
+  /** Gallop strides a second, how far its legs reach (radians), how far the body rocks, and how high it flies. */
+  readonly gallopRate: number;
+  readonly gallopReach: number;
+  readonly gallopRock: number;
+  readonly gallopHop: number;
 }
 
 export const DOG_STYLES = {
   /** Square and determined: a steady trot, a big waddle, a planted bark. */
   schnauzer: {
-    strideRate: 3,
-    legSwing: 0.6,
-    bob: 0.025,
-    waddle: 0.09,
+    strideRate: 2.3,
+    legSwing: 0.45,
+    bob: 0.016,
+    waddle: 0.06,
     barkHop: 0,
     wagSpeed: 1,
     wagSize: 1,
+    gallopRate: 2.8,
+    gallopReach: 0.85,
+    gallopRock: 0.13,
+    gallopHop: 0.05,
   },
   /** Light and bouncy: quick little steps, and a hop on every yip. */
   spitz: {
-    strideRate: 3.8,
-    legSwing: 0.55,
-    bob: 0.035,
-    waddle: 0.06,
+    strideRate: 2.7,
+    legSwing: 0.42,
+    bob: 0.022,
+    waddle: 0.045,
     barkHop: 0.06,
     wagSpeed: 0.55,
     wagSize: 0.6,
+    gallopRate: 3.3,
+    gallopReach: 0.8,
+    gallopRock: 0.11,
+    gallopHop: 0.07,
   },
 } as const satisfies Record<string, DogStyle>;
 
@@ -65,12 +83,14 @@ export const DOG_STYLE_FOR_MODEL: Readonly<Record<string, DogStyle>> = {
 const BARK = { windUp: 0.08, toss: 0.12, settle: 0.3 };
 const BARK_LENGTH = BARK.windUp + BARK.toss + BARK.settle;
 
+/** Each leg's phase in the trot and in the gallop (radians of the stride). */
 const LEGS = [
-  // Diagonal pairs move together: front-left with back-right, and the other two half a stride later.
-  ['legFrontLeft', 0],
-  ['legBackRight', 0],
-  ['legFrontRight', Math.PI],
-  ['legBackLeft', Math.PI],
+  // Trot: diagonal pairs move together. Gallop: the backs together, the fronts together
+  // half a stride later, each pair a touch apart so the feet land one-two.
+  ['legFrontLeft', 0, Math.PI],
+  ['legBackRight', 0, 0.25],
+  ['legFrontRight', Math.PI, Math.PI + 0.3],
+  ['legBackLeft', Math.PI, 0],
 ] as const;
 
 interface Rest {
@@ -80,7 +100,7 @@ interface Rest {
 }
 
 export class DogAnimator {
-  /** 0 standing, 1 full trot. Set it every frame from how fast the dog is moving. */
+  /** 0 standing, 1 full trot, 2 full gallop. Set it every frame from how fast the dog is moving. */
   speed = 0;
   private time = 0;
   private stride = 0;
@@ -119,10 +139,13 @@ export class DogAnimator {
     this.time += dt;
     this.sinceBark += dt;
     const t = this.time + this.seed * 7.3;
+    /** How much the dog is moving (0..1), and how much of that is gallop rather than trot. */
     const s = Math.min(1, Math.max(0, this.speed));
+    const g = Math.min(1, Math.max(0, this.speed - 1));
+    const trot = s * (1 - g);
     // Strides slow down with the dog, but never quite stop mid-step.
-    this.stride +=
-      dt * Math.PI * 2 * this.style.strideRate * (0.45 + 0.55 * s) * Math.min(1, s * 4);
+    const rate = this.style.strideRate + (this.style.gallopRate - this.style.strideRate) * g;
+    this.stride += dt * Math.PI * 2 * rate * (0.45 + 0.55 * s) * Math.min(1, s * 4);
 
     for (const [part, rest] of this.rest) {
       part.position.copy(rest.position);
@@ -146,22 +169,34 @@ export class DogAnimator {
 
     // Trot.
     const p = this.stride;
-    for (const [name, offset] of LEGS) {
+    for (const [name, trotPhase, gallopPhase] of LEGS) {
       const leg = this.part(name);
-      leg.rotation.x += -this.style.legSwing * s * Math.sin(p + offset);
+      leg.rotation.x += -this.style.legSwing * trot * Math.sin(p + trotPhase);
+      leg.rotation.x += -this.style.gallopReach * g * Math.sin(p + gallopPhase);
       // Lift the foot as it swings forward.
-      leg.position.y += 0.02 * s * Math.max(0, Math.cos(p + offset));
+      leg.position.y += 0.02 * trot * Math.max(0, Math.cos(p + trotPhase));
+      leg.position.y += 0.03 * g * Math.max(0, Math.cos(p + gallopPhase));
     }
-    body.position.y += this.style.bob * s * (1 - Math.cos(2 * p)) * 0.5;
-    body.rotation.z += this.style.waddle * s * Math.sin(p);
-    head.rotation.x += 0.07 * s * Math.sin(2 * p + 0.8);
-    head.rotation.z -= this.style.waddle * 0.6 * s * Math.sin(p);
+    body.position.y += this.style.bob * trot * (1 - Math.cos(2 * p)) * 0.5;
+    body.rotation.z += this.style.waddle * trot * Math.sin(p);
+    head.rotation.x += 0.035 * trot * Math.sin(2 * p + 0.8);
+    head.rotation.z -= this.style.waddle * 0.4 * trot * Math.sin(p);
+
+    // Gallop. At sin(p) = 1 the dog is bunched (backs forward under it, fronts back);
+    // at sin(p) = −1 it's stretched out (backs behind, fronts reaching) and flying.
+    const rock = this.style.gallopRock * g * Math.cos(p);
+    body.rotation.x += rock;
+    head.rotation.x -= rock * 0.8;
+    const flight = g * Math.max(0, -Math.sin(p)) ** 1.5;
+    tail.rotation.x -= 0.5 * g;
+    tail.rotation.x += 0.12 * g * Math.sin(p);
 
     // Tail: a lazy wag at rest, a little quicker on the move, happier after a bark.
     // The wag's phase is integrated (not time × rate), so speeding up never makes it jump.
     const excited = Math.max(0, 1 - this.sinceBark / 1.6);
     this.wag += dt * (4 + 3 * s + 4 * excited) * this.style.wagSpeed;
-    const wagSize = (0.2 + 0.08 * s + 0.15 * excited) * this.style.wagSize;
+    // Streaming out behind in a gallop, the tail only flutters.
+    const wagSize = (0.2 + 0.08 * s + 0.15 * excited) * this.style.wagSize * (1 - 0.6 * g);
     tail.rotation.z += wagSize * Math.sin(this.wag + this.seed);
 
     // Bark.
@@ -175,6 +210,7 @@ export class DogAnimator {
     } else {
       this.rig.root.position.y = this.rootRestY;
     }
+    this.rig.root.position.y += flight * this.style.gallopHop;
   }
 
   private part(name: string): THREE.Object3D {
