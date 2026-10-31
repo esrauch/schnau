@@ -184,3 +184,102 @@
   border-left-width: 26px;
   border-left-color: #ff6b4a;
 }
+
+/* The start menu: the title up top, the dogs and Play at the bottom; the scene shows between. */
+.hud-menu {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.hud-menu.shown {
+  display: block;
+}
+
+.hud-title {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.hud-title h1 {
+  margin: 0;
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 3px 0 rgb(0 0 0 / 0.35),
+    0 0 12px rgb(0 0 0 / 0.15);
+}
+
+.hud-title p {
+  margin: 2px 0 0;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.hud-menu-bottom {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-strength {
+  margin: 0;
+  max-width: 340px;
+  min-height: 2.7em;
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.35;
+  background: rgb(31 36 48 / 0.55);
+  border-radius: 14px;
+  padding: 8px 14px;
+}
+
+.hud-dogs {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.hud-dogs button,
+.hud-play {
+  flex: 1;
+  border: 0;
+  border-radius: 16px;
+  padding: 14px 10px;
+  font:
+    900 22px/1 system-ui,
+    sans-serif;
+  color: var(--ink);
+  background: var(--bone);
+  box-shadow: 0 5px 0 rgb(0 0 0 / 0.28);
+}
+
+.hud-dogs button.on {
+  background: #ffd23f;
+  box-shadow:
+    0 5px 0 rgb(0 0 0 / 0.28),
+    0 0 0 4px #fff7c2;
+}
+
+.hud-play {
+  width: 100%;
+  max-width: 340px;
+  flex: none;
+  font-size: 26px;
+  background: var(--accent);
+}
+
+.hud-play[hidden] {
+  display: none;
+}

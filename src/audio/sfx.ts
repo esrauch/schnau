@@ -5,6 +5,19 @@
  */
 import type { Mixer } from './mixer';
 import { noise } from './synth/instruments';
+import { VOICES, barkLength, renderBark } from './voices';
+
+/** A sound made by a voice (voices.ts), not a parameter set: a dog's bark. */
+export interface VoiceSfx {
+  readonly voice: keyof typeof VOICES;
+  /** Takes rendered (one is picked at random each time it plays). */
+  readonly takes: number;
+  /** Every take is levelled to this peak (0..1). */
+  readonly volume: number;
+  readonly bus?: 'sfx' | 'ui';
+  readonly maxVoices?: number;
+  readonly jitter?: number;
+}
 
 export interface SfxDef {
   readonly wave: OscillatorType | 'noise';
@@ -63,35 +76,38 @@ export const SFX = {
     noteStep: 0.055,
   },
   uiClick: { wave: 'triangle', freq: 660, attack: 0.001, decay: 0.05, volume: 0.3, bus: 'ui' },
-  /** The schnauzer: a short, gruff "woof" (a buzzy tone dropping fast through a closing filter). */
-  woof: {
-    wave: 'sawtooth',
-    freq: 330,
-    freqEnd: 170,
-    attack: 0.008,
-    decay: 0.17,
-    volume: 0.75,
-    filter: { type: 'lowpass', freq: 1500, freqEnd: 420, q: 5 },
-    maxVoices: 2,
-    jitter: 60,
-  },
-  /** The spitz: a bright little "yip", rising then dropping. */
-  yip: {
-    wave: 'sawtooth',
-    freq: 760,
-    freqEnd: 520,
-    attack: 0.004,
-    decay: 0.1,
-    volume: 0.55,
-    filter: { type: 'bandpass', freq: 1800, freqEnd: 1100, q: 3 },
-    notes: [1, 1.12],
-    noteStep: 0.035,
-    maxVoices: 2,
-    jitter: 80,
-  },
-} as const satisfies Record<string, SfxDef>;
+  // The dogs' voices: each dog's yip and WOOF (voices.ts).
+  rozYip: { voice: 'rozYip', takes: 3, volume: 0.7, maxVoices: 2, jitter: 40 },
+  rozWoof: { voice: 'rozWoof', takes: 3, volume: 0.85, maxVoices: 2, jitter: 30 },
+  lumenYip: { voice: 'lumenYip', takes: 3, volume: 0.6, maxVoices: 2, jitter: 50 },
+  lumenWoof: { voice: 'lumenWoof', takes: 3, volume: 0.75, maxVoices: 2, jitter: 40 },
+} as const satisfies Record<string, SfxDef | VoiceSfx>;
 
 export type SfxId = keyof typeof SFX;
+
+type AnySfx = SfxDef | VoiceSfx;
+
+/** Render every take of an effect (one, unless it's a voice with several). */
+export async function renderSfxTakes(def: AnySfx, sampleRate: number): Promise<AudioBuffer[]> {
+  if (!('voice' in def)) return [await renderSfx(def, sampleRate)];
+  const voice = VOICES[def.voice];
+  const takes: AudioBuffer[] = [];
+  for (let take = 0; take < def.takes; take++) {
+    const ctx = new OfflineAudioContext(1, Math.ceil(barkLength(voice) * sampleRate), sampleRate);
+    renderBark(ctx, voice, take, noise(ctx));
+    takes.push(normalize(await ctx.startRendering(), def.volume));
+  }
+  return takes;
+}
+
+/** Scale a buffer so its loudest sample is `peak`. */
+function normalize(buffer: AudioBuffer, peak: number): AudioBuffer {
+  const data = buffer.getChannelData(0);
+  let max = 0;
+  for (const v of data) max = Math.max(max, Math.abs(v));
+  if (max > 0) for (let i = 0; i < data.length; i++) data[i] = (data[i] ?? 0) * (peak / max);
+  return buffer;
+}
 
 /** Render one effect into a buffer. */
 export async function renderSfx(def: SfxDef, sampleRate: number): Promise<AudioBuffer> {
@@ -140,13 +156,13 @@ export async function renderSfx(def: SfxDef, sampleRate: number): Promise<AudioB
   return ctx.startRendering();
 }
 
-let renderedSfx: Promise<Map<SfxId, AudioBuffer>> | null = null;
+let renderedSfx: Promise<Map<SfxId, AudioBuffer[]>> | null = null;
 
-/** Render every effect (once). Doesn't need the live context, so it can start at load. */
-export function prepareSfx(sampleRate: number): Promise<Map<SfxId, AudioBuffer>> {
+/** Render every effect (once), every take. Doesn't need the live context, so it can start at load. */
+export function prepareSfx(sampleRate: number): Promise<Map<SfxId, AudioBuffer[]>> {
   renderedSfx ??= Promise.all(
-    (Object.entries(SFX) as [SfxId, SfxDef][]).map(
-      async ([id, def]) => [id, await renderSfx(def, sampleRate)] as const,
+    (Object.entries(SFX) as [SfxId, AnySfx][]).map(
+      async ([id, def]) => [id, await renderSfxTakes(def, sampleRate)] as const,
     ),
   ).then((entries) => new Map(entries));
   return renderedSfx;
@@ -159,14 +175,15 @@ export class SfxPlayer {
   constructor(
     private readonly ctx: AudioContext,
     private readonly mixer: Mixer,
-    private readonly buffers: Map<SfxId, AudioBuffer>,
+    private readonly buffers: Map<SfxId, AudioBuffer[]>,
   ) {}
 
   /** Play an effect now (or at a context time). */
   play(id: SfxId, when = 0): void {
-    const buffer = this.buffers.get(id);
+    const takes = this.buffers.get(id);
+    const buffer = takes?.[Math.floor(Math.random() * takes.length)];
     if (!buffer) return;
-    const def: SfxDef = SFX[id];
+    const def: AnySfx = SFX[id];
     const voices = this.playing.get(id) ?? [];
     if (voices.length >= (def.maxVoices ?? 4)) voices.shift()?.stop();
     const src = this.ctx.createBufferSource();

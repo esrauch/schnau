@@ -5,7 +5,7 @@ cottage and its treat jar from goblins, bugs and, at last, a dragon. You
 can't bite anyone; you **bark**, and they run away scared.
 
 Think of it as a defence-only action game: no buildings yet, just the dog.
-A run lasts about **2 minutes**, ending with the dragon (who arrives at about 1:10).
+A run lasts about **a minute and a half**, ending with the dragon (who arrives at 0:45).
 
 Numbers live in `src/content/gameTuning.ts`; everything below is a starting
 point to tune by feel.
@@ -32,17 +32,23 @@ point to tune by feel.
 
 Desktop: WASD or arrows to move, Shift to dash, Space to woof (tap or hold).
 
-**Health.** The dog has **5 hearts**. Goblins swat it, bugs sting it, dragon
+**Health.** The dog has **2 hearts**. Goblins swat it, bugs sting it, dragon
 fire burns it (with a moment of safety after each hit). At zero hearts the dog
 doesn't die: it's **pooped**, and trots home to its doghouse on its own (you
 can't steer), goes all the way inside for a short nap (Zz), and comes back out
 of the door with full hearts. The
 cost is time: while you're away, nobody is guarding the treats.
 
-**Two dogs**, one per run (`?dog=spitz`; a picker comes later):
+**Two dogs**, one per run:
 
-- **Schnauzer:** the bigger WOOF, which also charges faster. A slower dash.
-- **Spitz:** quicker yips that reach further. A faster, longer dash.
+- **Roz** (the black schnauzer): the bigger WOOF, which also charges faster. A slower dash.
+- **Lumen** (the cream spitz): quicker yips that reach further. A faster, longer dash.
+
+**The start menu** is the cottage with Roz and Lumen pottering about on the
+lawn in front of the doghouse. Tap **Roz** or **Lumen**: that dog lights up
+with a gold outline, turns to you and barks, and a line says what it's better
+at. Then **Play**. (`?dog=schnauzer` or `?dog=spitz` skips the menu.) After a
+run: **Play again** with the same dog, or back to the **Menu**.
 
 ## Barking: yip vs. WOOF
 
@@ -53,7 +59,7 @@ upgrades).
 | | **Yip** (tap) | **WOOF** (hold, then release) |
 |---|---|---|
 | Shape | A narrow cone, long reach. It snaps to the nearest enemy roughly in front of you. | A burst all around you, short reach. |
-| Scare | **1 pip**, and a **startle**: the enemy freezes for a moment, and a goblin drops what it's carrying. | **2–3 pips** (more the longer you charge), and **knockback**. |
+| Scare | **1 pip**, and a **startle**: the enemy freezes for a moment, and a goblin drops what it's carrying. | **1 pip** to everything it reaches (charging longer reaches further), and **knockback**. |
 | Rhythm | Quick, spammable. | Slow to charge; you crawl while charging; longer cooldown. |
 | Good for | Single goblins, and making thieves drop treats. | Bug swarms and crowds. |
 
@@ -79,8 +85,8 @@ run, bark, run. Scare it off and you win.
 
 ## A run
 
-About a minute of waves, busier as it goes: goblins first, then bug clouds,
-then both; then the dragon at about 1:10 (with a few goblins). The run ends when:
+About 45 seconds of waves, busier as it goes: goblins first, then bug clouds,
+then both; then the dragon at 0:45 (with a few goblins). The run ends when:
 
 - **The dragon flees:** you win. Your score is the treats still in the jar
   (and bones collected).

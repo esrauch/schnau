@@ -6,6 +6,18 @@
 export type DogKind = 'schnauzer' | 'spitz';
 export type EnemyKind = 'goblin' | 'bugs' | 'dragon';
 
+/** Each dog's name, and what it's better at (shown when picking a dog). */
+export const DOG_INFO: Record<DogKind, { readonly name: string; readonly strength: string }> = {
+  schnauzer: {
+    name: 'Roz',
+    strength: 'Roz has the big WOOF: it reaches further and charges faster. A slower dash.',
+  },
+  spitz: {
+    name: 'Lumen',
+    strength: 'Lumen has quick yips that reach further, and a faster, longer dash.',
+  },
+};
+
 export interface DogStats {
   readonly speed: number;
   readonly radius: number;
@@ -22,7 +34,7 @@ export interface DogStats {
     readonly holdToCharge: number;
     /** Seconds from starting the charge to full. */
     readonly chargeTime: number;
-    /** Radius and pips at the smallest and the full charge. */
+    /** Radius and pips at the smallest and the full charge (a WOOF's strength is its reach, not its bite). */
     readonly radius: readonly [number, number];
     readonly pips: readonly [number, number];
     readonly knockback: number;
@@ -35,14 +47,14 @@ export interface DogStats {
 const baseDog: DogStats = {
   speed: 2.6,
   radius: 0.35,
-  hearts: 5,
+  hearts: 2,
   dash: { speed: 6.5, time: 0.32, cooldown: 1.3 },
   yip: { range: 4, halfAngle: 0.5, cooldown: 0.35 },
   woof: {
     holdToCharge: 0.2,
     chargeTime: 0.6,
     radius: [1.6, 2.6],
-    pips: [2, 3],
+    pips: [1, 1],
     knockback: 2.2,
     cooldown: 1.1,
     chargeSlow: 0.4,
@@ -135,16 +147,15 @@ export interface Spawn {
   readonly every: number;
 }
 
-/** About two minutes: a quick build-up of goblins and bugs, the dragon at 1:10. */
+/** About a minute and a half: a quick build-up of goblins and bugs, the dragon at 0:45. */
 export const WAVES: readonly Spawn[] = [
-  { at: 2, kind: 'goblin', count: 3, every: 3.5 },
-  { at: 14, kind: 'bugs', count: 1, every: 0 },
-  { at: 18, kind: 'goblin', count: 4, every: 2.5 },
-  { at: 30, kind: 'bugs', count: 1, every: 0 },
-  { at: 36, kind: 'goblin', count: 5, every: 2 },
-  { at: 48, kind: 'bugs', count: 2, every: 4 },
-  { at: 54, kind: 'goblin', count: 5, every: 1.8 },
-  { at: 70, kind: 'dragon', count: 1, every: 0 },
-  { at: 74, kind: 'goblin', count: 4, every: 4 },
-  { at: 82, kind: 'bugs', count: 2, every: 10 },
+  { at: 2, kind: 'goblin', count: 3, every: 3 },
+  { at: 10, kind: 'bugs', count: 1, every: 0 },
+  { at: 14, kind: 'goblin', count: 4, every: 2.2 },
+  { at: 24, kind: 'bugs', count: 1, every: 0 },
+  { at: 28, kind: 'goblin', count: 5, every: 1.8 },
+  { at: 40, kind: 'bugs', count: 1, every: 0 },
+  { at: 45, kind: 'dragon', count: 1, every: 0 },
+  { at: 48, kind: 'goblin', count: 4, every: 4 },
+  { at: 56, kind: 'bugs', count: 2, every: 10 },
 ];

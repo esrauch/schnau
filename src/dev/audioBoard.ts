@@ -130,11 +130,15 @@ function interactive(): void {
   songRow.append(setupToggle);
   showStems(SONGS[0]);
 
+  // Each press plays the next take (voices have several).
+  const nextTake = new Map<SfxId, number>();
   for (const id of Object.keys(SFX) as SfxId[]) {
     button(sfxRow, id, async () => {
       const ctx = await unlockAudio();
-      const buffers = await prepareSfx(RENDER_RATE);
-      const buffer = buffers.get(id);
+      const takes = (await prepareSfx(RENDER_RATE)).get(id) ?? [];
+      const take = (nextTake.get(id) ?? 0) % Math.max(1, takes.length);
+      nextTake.set(id, take + 1);
+      const buffer = takes[take];
       if (!buffer) return;
       const src = ctx.createBufferSource();
       src.buffer = buffer;
@@ -142,7 +146,8 @@ function interactive(): void {
       src.start();
       draw(buffer.getChannelData(0));
       const { peakDb, rmsDb } = levels([buffer.getChannelData(0)]);
-      status.textContent = `${id}: ${(buffer.duration * 1000).toFixed(0)} ms · peak ${peakDb.toFixed(1)} dBFS · RMS ${rmsDb.toFixed(1)} dBFS`;
+      const which = takes.length > 1 ? ` (take ${take + 1} of ${takes.length})` : '';
+      status.textContent = `${id}${which}: ${(buffer.duration * 1000).toFixed(0)} ms · peak ${peakDb.toFixed(1)} dBFS · RMS ${rmsDb.toFixed(1)} dBFS`;
     });
   }
 }
@@ -194,9 +199,16 @@ async function renderForTool(mode: string, id: string): Promise<void> {
   let samples: Float32Array;
   let looping = false;
   if (mode === 'sfx') {
-    const buffer = (await prepareSfx(RENDER_RATE)).get(id as SfxId);
-    if (!buffer) throw new Error(`No sfx "${id}"`);
-    samples = buffer.getChannelData(0);
+    // Every take, one after another with a short gap, so a render has them all to hear.
+    const takes = (await prepareSfx(RENDER_RATE)).get(id as SfxId);
+    if (!takes?.length) throw new Error(`No sfx "${id}"`);
+    const gap = Math.round(RENDER_RATE * 0.3);
+    samples = new Float32Array(takes.reduce((n, t) => n + t.length + gap, 0));
+    let at = 0;
+    for (const take of takes) {
+      samples.set(take.getChannelData(0), at);
+      at += take.length + gap;
+    }
   } else {
     const [songId, stemId] = id.split('/');
     const s = SONGS.find((x) => x.id === songId);

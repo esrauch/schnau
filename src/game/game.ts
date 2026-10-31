@@ -1,5 +1,6 @@
 /**
- * The controller (TECHNICAL.md §3): the start screen (pick a dog), then a run.
+ * The controller (TECHNICAL.md §3): the start menu (Roz and Lumen pottering
+ * about; pick one, then Play), then a run.
  * It steps the simulation at a fixed 60 Hz with the controls' input, turns
  * the simulation's events into sounds, effects and messages, poses the dog,
  * and follows it with the camera. Rules live in sim/run.ts; this only plays them.
@@ -7,7 +8,7 @@
 import * as THREE from 'three';
 import { SONGS } from '../audio/songs';
 import type { SfxId } from '../audio/sfx';
-import { DOGS, type DogKind, gameTuning as T } from '../content/gameTuning';
+import { DOGS, DOG_INFO, type DogKind, gameTuning as T } from '../content/gameTuning';
 import { Actors, type Blend } from '../render/actors';
 import { DOG_STYLES, DogAnimator } from '../render/dogAnimator';
 import { CONTOUR_LAYER } from '../render/outline';
@@ -26,16 +27,23 @@ import { Controls } from '../ui/controls';
 import { Hud } from '../ui/hud';
 import { buildRig, type Rig } from '../voxel/models';
 import { Conductor } from './conductor';
+import { DOG_MODEL, MENU_FOCUS, MenuScene } from './menu';
 
 /** Never try to catch up more than this much time in one frame (a background tab, a breakpoint). */
 const MAX_FRAME = 0.25;
-const DOG_MODEL: Record<DogKind, string> = {
-  schnauzer: 'hero/blackSchnauzer',
-  spitz: 'hero/spitz',
+/** Each dog's voice: its yip and its WOOF. */
+const VOICE: Record<DogKind, { yip: SfxId; woof: SfxId }> = {
+  schnauzer: { yip: 'rozYip', woof: 'rozWoof' },
+  spitz: { yip: 'lumenYip', woof: 'lumenWoof' },
 };
+
+/** The picked dog's outline on the menu: bright gold. */
+const PICKED_OUTLINE = 0xffd23f;
 /** Camera: pitched down this much, framing about this many units either side of the dog. */
 const CAMERA_PITCH = THREE.MathUtils.degToRad(56);
 const CAMERA_HALF_WIDTH = 2.7;
+/** On the menu: a little closer, framing the cottage, doghouse and both dogs. */
+const MENU_HALF_WIDTH = 2.3;
 
 export class Game {
   private readonly view: View;
@@ -45,6 +53,7 @@ export class Game {
   private readonly actors: Actors;
   private state: RunState | null = null;
   private dog: { rig: Rig; animator: DogAnimator; facing: number } | null = null;
+  private menu: MenuScene | null = null;
   private accumulator = 0;
   private last = performance.now();
   private shake = 0;
@@ -76,17 +85,42 @@ export class Game {
     this.view.scene.add(this.snore);
     this.controls = new Controls(ui);
     this.hud = new Hud(ui);
-    // Until a run starts: the schnauzer waits by its doghouse.
-    this.setDog('schnauzer', T.doghouse.x, T.doghouse.z + 0.9);
-    this.camTarget.set(T.doghouse.x, 0, T.doghouse.z);
+    this.camTarget.copy(MENU_FOCUS);
     if (options.dog) this.start(options.dog);
-    else this.hud.pickDog((dog) => this.start(dog));
+    else this.showMenu();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** The start menu: both dogs on the lawn; pick one (it's outlined and barks), then Play. */
+  private showMenu(): void {
+    this.state = null;
+    this.actors.clear();
+    if (this.dog) this.view.scene.remove(this.dog.rig.root);
+    this.dog = null;
+    this.snore.visible = false;
+    this.controls.setVisible(false);
+    this.view.outline?.setContour(null);
+    this.menu = new MenuScene(this.view.scene);
+    this.hud.menu({
+      onPick: (dog) => {
+        // The first tap is also when the browser lets sound start.
+        if (!this.conductor.started) void this.conductor.start(SONGS[0]);
+        this.view.outline?.setContour(PICKED_OUTLINE);
+        this.menu?.pick(dog);
+        this.conductor.play(VOICE[dog].woof);
+      },
+      onPlay: (dog) => this.start(dog),
+    });
   }
 
   private start(kind: DogKind): void {
     if (!this.conductor.started) void this.conductor.start(SONGS[0]);
     this.conductor.play('uiClick');
+    this.menu?.dispose();
+    this.menu = null;
+    this.hud.hideMenu();
+    this.controls.setVisible(true);
+    this.view.outline?.setContour(this.options.contour);
     this.actors.clear();
     this.announced.clear();
     this.overTimer = null;
@@ -122,7 +156,7 @@ export class Game {
         this.accumulator -= DT;
       }
       this.syncRun(state, dt, { alpha: this.accumulator / DT, previous: this.previous });
-    } else if (this.dog) this.dog.animator.update(dt);
+    } else this.menu?.update(dt);
     this.followCamera(dt);
     this.view.render();
     requestAnimationFrame((t) => this.frame(t));
@@ -229,11 +263,11 @@ export class Game {
     switch (e.type) {
       case 'yip':
         this.dog?.animator.bark();
-        sfx('yip');
+        sfx(VOICE[state.dog.kind].yip);
         break;
       case 'woof':
         this.dog?.animator.bark();
-        sfx('woof');
+        sfx(VOICE[state.dog.kind].woof);
         this.shake = 0.12 + 0.1 * e.charge;
         break;
       case 'dash':
@@ -264,7 +298,7 @@ export class Game {
         this.shake = 0.15;
         break;
       case 'pooped':
-        this.hud.say('Pooped! Off to the doghouse…', 2.2);
+        this.hud.say(`${DOG_INFO[state.dog.kind].name} is pooped! Off to the doghouse…`, 2.2);
         break;
       case 'restored':
         this.hud.say('Back on guard!', 1.4);
@@ -277,7 +311,13 @@ export class Game {
       case 'lost':
         if (e.type === 'won') sfx('chime');
         this.overTimer = window.setTimeout(() => {
-          this.hud.end(e.type === 'won', state.jar, state.bones, () => this.start(state.dog.kind));
+          this.hud.end(
+            e.type === 'won',
+            state.jar,
+            state.bones,
+            () => this.start(state.dog.kind),
+            () => this.showMenu(),
+          );
         }, 1600);
         break;
     }
@@ -287,13 +327,17 @@ export class Game {
   private followCamera(dt: number): void {
     const { camera } = this.view;
     // Follow the dog as drawn (between steps), so the camera glides too.
+    // On the menu, a fixed view of the cottage, doghouse and both dogs.
     const dog = this.state ? this.dog?.rig.root.position : undefined;
-    if (dog) this.camTarget.lerp(new THREE.Vector3(dog.x, 0, dog.z), Math.min(1, dt * 5));
+    const focus = dog ? new THREE.Vector3(dog.x, 0, dog.z) : MENU_FOCUS;
+    this.camTarget.lerp(focus, Math.min(1, dt * 5));
     const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
     const halfHFov = Math.atan(Math.tan(halfFov) * camera.aspect);
-    const dist = THREE.MathUtils.clamp(CAMERA_HALF_WIDTH / Math.tan(halfHFov), 7, 14);
-    // Look a little ahead (up the screen), so more of the yard shows in front.
-    const look = this.camTarget.clone().add(new THREE.Vector3(0, 0.3, -0.6));
+    const halfWidth = this.state ? CAMERA_HALF_WIDTH : MENU_HALF_WIDTH;
+    const dist = THREE.MathUtils.clamp(halfWidth / Math.tan(halfHFov), 6, 14);
+    // In play, look a little ahead (up the screen), so more of the yard shows in front; on
+    // the menu, a little below, so the dogs sit above the menu's buttons.
+    const look = this.camTarget.clone().add(new THREE.Vector3(0, 0.3, this.state ? -0.6 : 0.9));
     camera.position.set(
       look.x,
       look.y + Math.sin(CAMERA_PITCH) * dist,

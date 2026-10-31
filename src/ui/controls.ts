@@ -116,6 +116,11 @@ export class Controls {
     return { moveX, moveZ, dash, woof: this.woofPointers.size > 0 || this.keys.has('Space') };
   }
 
+  /** Show or hide the controls (hidden on the start screen). */
+  setVisible(visible: boolean): void {
+    this.root.style.display = visible ? '' : 'none';
+  }
+
   /** Show the WOOF's charge (0..1) and whether the buttons are ready. */
   show(state: { charge: number; dashReady: number; woofReady: boolean; enabled: boolean }): void {
     this.woofButton.style.setProperty('--charge', String(state.charge));

@@ -1,9 +1,9 @@
 /**
  * The HUD (GAMEPLAY.md): treats in the jar, the dog's hearts, bones, the
- * dragon's courage while it's here, pop-up messages, and the start (pick a
- * dog) and end screens. Plain DOM over the canvas.
+ * dragon's courage while it's here, pop-up messages, the start menu (pick a
+ * dog, then Play) and the end screen. Plain DOM over the canvas.
  */
-import type { DogKind } from '../content/gameTuning';
+import { DOG_INFO, type DogKind } from '../content/gameTuning';
 import './hud.css';
 
 export interface HudState {
@@ -24,6 +24,8 @@ export class Hud {
   private readonly dragonFill: HTMLDivElement;
   private readonly message: HTMLDivElement;
   private readonly screen: HTMLDivElement;
+  private readonly menuRoot: HTMLDivElement;
+  private readonly top: HTMLDivElement;
   private readonly arrows: HTMLDivElement[] = [];
   private last = '';
   private messageTimer: ReturnType<typeof setTimeout> | null = null;
@@ -31,6 +33,7 @@ export class Hud {
   constructor(parent: HTMLElement) {
     this.root = div('hud');
     const top = div('hud-top');
+    this.top = top;
     this.jar = div('hud-jar');
     this.bones = div('hud-bones');
     this.hearts = div('hud-hearts');
@@ -43,7 +46,8 @@ export class Hud {
     this.dragon.append(bar);
     this.message = div('hud-message');
     this.screen = div('hud-screen interactive');
-    this.root.append(top, this.dragon, this.message, this.screen);
+    this.menuRoot = div('hud-menu');
+    this.root.append(top, this.dragon, this.message, this.screen, this.menuRoot);
     parent.append(this.root);
   }
 
@@ -90,26 +94,60 @@ export class Hud {
     this.messageTimer = setTimeout(() => this.message.classList.remove('shown'), seconds * 1000);
   }
 
-  /** The start screen: pick a dog. */
-  pickDog(onPick: (dog: DogKind) => void): void {
-    this.showScreen(
-      `<h1>Schnau</h1>
-       <p>Guard Grandma's treats! Bark at goblins, bugs and the dragon to scare them off.</p>
-       <p class="hud-hint">Tap WOOF to yip · hold it to charge a big WOOF</p>`,
-      [
-        ['Schnauzer', 'Big WOOF', () => onPick('schnauzer')],
-        ['Spitz', 'Quick yips, fast dash', () => onPick('spitz')],
-      ],
-    );
+  /**
+   * The start menu, over the live scene: the title, a button per dog (picking
+   * one says what it's better at), and Play once a dog is picked.
+   */
+  menu(handlers: { onPick: (dog: DogKind) => void; onPlay: (dog: DogKind) => void }): void {
+    this.top.style.display = 'none';
+    this.menuRoot.innerHTML = `
+      <div class="hud-title"><h1>Schnau</h1><p>Guard Grandma's treats!</p></div>
+      <div class="hud-menu-bottom interactive">
+        <p class="hud-strength">Who's on guard today?</p>
+        <div class="hud-dogs"></div>
+        <button class="hud-play" hidden>Play</button>
+      </div>`;
+    const strength = this.menuRoot.querySelector<HTMLParagraphElement>('.hud-strength');
+    const row = this.menuRoot.querySelector<HTMLDivElement>('.hud-dogs');
+    const play = this.menuRoot.querySelector<HTMLButtonElement>('.hud-play');
+    let picked: DogKind | null = null;
+    for (const dog of ['schnauzer', 'spitz'] as const) {
+      const b = document.createElement('button');
+      b.textContent = DOG_INFO[dog].name;
+      b.dataset.dog = dog;
+      b.addEventListener('click', () => {
+        picked = dog;
+        row?.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+        if (strength) strength.textContent = DOG_INFO[dog].strength;
+        if (play) play.hidden = false;
+        handlers.onPick(dog);
+      });
+      row?.append(b);
+    }
+    play?.addEventListener('click', () => {
+      if (!picked) return;
+      this.hideMenu();
+      handlers.onPlay(picked);
+    });
+    this.menuRoot.classList.add('shown');
   }
 
-  /** The end screen. */
-  end(won: boolean, jar: number, bones: number, onAgain: () => void): void {
+  hideMenu(): void {
+    this.menuRoot.classList.remove('shown');
+    this.menuRoot.innerHTML = '';
+    this.top.style.display = '';
+  }
+
+  /** The end screen: play again with the same dog, or back to the menu. */
+  end(won: boolean, jar: number, bones: number, onAgain: () => void, onMenu: () => void): void {
     this.showScreen(
       won
         ? `<h1>You did it!</h1><p>The dragon flew off. <b>${jar}</b> treats saved, <b>${bones}</b> bones.</p>`
         : `<h1>Oh no!</h1><p>The treat jar is empty. <b>${bones}</b> bones.</p>`,
-      [['Play again', '', onAgain]],
+      [
+        ['Play again', '', onAgain],
+        ['Menu', '', onMenu],
+      ],
     );
   }
 

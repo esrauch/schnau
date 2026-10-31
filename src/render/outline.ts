@@ -89,6 +89,12 @@ export class Outline {
     this.quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
   }
 
+  /** Change the contour's colour, or turn it off (null). */
+  setContour(color: number | null): void {
+    this.uniforms.contourOn.value = color !== null;
+    if (color !== null) this.uniforms.contourColor.value.set(color);
+  }
+
   /** Match the drawing buffer (device pixels). */
   setSize(width: number, height: number, pixelRatio: number): void {
     this.color.setSize(width, height);
